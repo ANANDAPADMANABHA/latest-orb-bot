@@ -1,6 +1,7 @@
 import datetime as dt
 import time
-
+import sys
+sys.path.append('D:\projects\Trade-master')
 import pandas as pd
 
 from src.trademaster.data_loader import ORB_TICKERS
@@ -27,6 +28,12 @@ class TradeMaster(OpeningRangeBreakout):
         df = pd.DataFrame.from_dict(hi_lo_prices)
         print(df)
 
+        now = dt.datetime.now()
+        seconds_to_sleep = (300 - (now.minute % 5) * 60 - now.second - now.microsecond / 1000000)
+        print(f"Waiting for {seconds_to_sleep:.2f} seconds to align with the next 5-minute mark.")
+        time.sleep(seconds_to_sleep)
+        starttime = time.time()
+
         while dt.datetime.now() < dt.datetime.strptime(
             dt.datetime.now().strftime('%Y-%m-%d') + ' 15:30', '%Y-%m-%d %H:%M'
         ):
@@ -35,7 +42,9 @@ class TradeMaster(OpeningRangeBreakout):
             open_orders = self.get_open_orders()
             self.orb_strat(ORB_TICKERS, hi_lo_prices, positions, open_orders)
             time.sleep(300 - ((time.time() - starttime) % 300.0))
-
+        now = dt.datetime.now()
+        print(now)
+        print('bot exiting after market time')
 
 trade = TradeMaster()
 trade.make_some_money()

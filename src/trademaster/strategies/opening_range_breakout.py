@@ -6,7 +6,7 @@ import pandas as pd
 
 from src.trademaster.broker import AngelOneClient
 from src.trademaster.utils import token_lookup,Colors
-
+from  utils import log_trade_to_csv
 
 class OpeningRangeBreakout(AngelOneClient):
     """A class to implement Opening Range Breakout trading strategy."""
@@ -41,7 +41,7 @@ class OpeningRangeBreakout(AngelOneClient):
                 for i in tickers
                 if i + '-EQ' not in positions['tradingsymbol'].to_list()
             ]
-        if not open_orders.empty: 
+        if open_orders is not None and not open_orders.empty:
             '''proceed with the tickers that are not in open orders'''
             tickers = [
                 i
@@ -88,6 +88,7 @@ class OpeningRangeBreakout(AngelOneClient):
                             hi_lo_prices[ticker],
                             quantity,
                         ):
+                            log_trade_to_csv(ticker, 'BUY', df_data['close'].iloc[-1] , filename='trade_log.csv')
                             print(f'{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}')
                     elif (
                         df_data['close'].iloc[-1] <= hi_lo_prices[ticker][1]
@@ -100,6 +101,7 @@ class OpeningRangeBreakout(AngelOneClient):
                             hi_lo_prices[ticker],
                             quantity,
                         ):
+                            log_trade_to_csv(ticker, 'SELL', df_data['close'].iloc[-1] , filename='trade_log.csv')
                             print(f'{Colors.RED}Sold {quantity} stocks of {ticker}{Colors.RESET}')
                 else:
                     print(f'{Colors.YELLOW}NO TRADE : {ticker}{Colors.RESET}')

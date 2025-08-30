@@ -1,0 +1,1 @@
+web: python src/trademaster/trading_bot.py
