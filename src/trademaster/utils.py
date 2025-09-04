@@ -2,6 +2,12 @@ from typing import Dict, List, Optional, Union
 import pandas as pd
 import os
 from datetime import datetime
+import json
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from dotenv import load_dotenv
+load_dotenv()
+
 
 def token_lookup(
     ticker: str,
@@ -48,3 +54,33 @@ def log_trade_to_csv(ticker, side, amount, filename='trade_log.csv'):
         df.to_csv(filename, mode='a', header=True, index=False)
     else:
         df.to_csv(filename, mode='a', header=False, index=False)
+
+
+def get_stock_tickers(sheet_name: str, worksheet_name: str = 'Sheet1') -> list:
+    # Define the scope
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+
+    # Add credentials
+    credentials_json = os.environ.get("GOOGLE_CREDS_JSON")
+
+    credentials_dict = json.loads(credentials_json)
+
+    credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
+    
+
+    # Authorize the client
+    client = gspread.authorize(credentials)
+
+    # Open the spreadsheet
+    sheet = client.open(sheet_name).worksheet(worksheet_name)
+    # sheet = client.open_by_key("1XYxdlCobrQlM2OmyFbTsckDHWigvpj7mAJip2LrhnDw").worksheet("Sheet1")
+    # Get all values from the first column
+    tickers = sheet.col_values(1)
+
+    # Optional: clean empty rows
+    tickers = [t.strip().upper() for t in tickers if t.strip()]
+
+    return tickers
+
+# ORB_TICKERS = get_stock_tickers(sheet_name='trade-master')
+# print(ORB_TICKERS)

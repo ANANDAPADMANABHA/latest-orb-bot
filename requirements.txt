@@ -52,3 +52,5 @@ pre-commit
 celery
 redis
 python-dotenv
+gspread
+oauth2client
