@@ -6,7 +6,7 @@ import pandas as pd
 
 from src.trademaster.broker import AngelOneClient
 from src.trademaster.utils import token_lookup,Colors
-from  utils import log_trade_to_csv
+from  src.trademaster.utils import log_trade_to_csv
 
 class OpeningRangeBreakout(AngelOneClient):
     """A class to implement Opening Range Breakout trading strategy."""

@@ -1,9 +1,16 @@
 # celery_config.py
+
 from celery import Celery
+from dotenv import load_dotenv
 from celery.schedules import crontab
+import os
 
-app = Celery('trade_tasks', broker='redis://localhost:6379/0')
+load_dotenv()
 
+
+# app = Celery('trade_tasks', broker='redis://localhost:6379/0')
+
+app = Celery('trade_tasks', broker=os.environ.get('REDIS_URL'))
 
 app.conf.update(
     timezone='Asia/Calcutta',  # Set your local timezone here

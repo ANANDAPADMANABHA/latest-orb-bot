@@ -1,7 +1,7 @@
 import datetime as dt
 import time
 import sys
-sys.path.append('D:\projects\Trade-master')
+# sys.path.append('D:\projects\Trade-master')
 import pandas as pd
 
 from src.trademaster.data_loader import ORB_TICKERS
@@ -46,5 +46,6 @@ class TradeMaster(OpeningRangeBreakout):
         print(now)
         print('bot exiting after market time')
 
-trade = TradeMaster()
-trade.make_some_money()
+# trade = TradeMaster()
+# trade.make_some_money()
+
