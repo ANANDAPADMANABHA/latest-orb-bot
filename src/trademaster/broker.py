@@ -83,6 +83,11 @@ class AngelOneClient:
         ltp: Optional[float] = self.get_ltp(instrument_list, ticker, exchange)
         if not ltp:
             return None
+        limit_price =ltp + 1 if buy_sell == 'BUY' else ltp - 1
+        if buy_sell == "SELL":
+            stop_loss_price = limit_price * 1.01   # 1% above
+        else:  # BUY
+            stop_loss_price = limit_price * 0.99   # 1% below
         params: Dict[str, Union[str, int, float]] = {
             'variety': 'ROBO',
             'tradingsymbol': '{}-EQ'.format(ticker),
@@ -91,13 +96,14 @@ class AngelOneClient:
             'exchange': exchange,
             'ordertype': 'LIMIT',
             'producttype': 'BO',
-            'price': ltp + 1 if buy_sell == 'BUY' else ltp - 1,
+            'price': limit_price,
             'duration': 'DAY',
-            'stoploss': abs((ltp - prices[0]) if buy_sell == 'BUY' else (prices[1] - ltp)),
+            'stoploss': stop_loss_price,
             'squareoff': round(ltp * 0.05, 1),
             'quantity': quantity,
         }
         try:
+            print('Payload :', params)
             response = self.smart_api.placeOrder(params)
             return response
         except Exception as e:
