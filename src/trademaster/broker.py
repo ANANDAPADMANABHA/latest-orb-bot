@@ -83,7 +83,6 @@ class AngelOneClient:
         ltp: Optional[float] = self.get_ltp(instrument_list, ticker, exchange)
         if not ltp:
             return None
-        sl = (ltp - prices[0]) if buy_sell == 'BUY' else (prices[1] - ltp)
         params: Dict[str, Union[str, int, float]] = {
             'variety': 'ROBO',
             'tradingsymbol': '{}-EQ'.format(ticker),
@@ -94,7 +93,7 @@ class AngelOneClient:
             'producttype': 'BO',
             'price': ltp + 1 if buy_sell == 'BUY' else ltp - 1,
             'duration': 'DAY',
-            'stoploss': max(1.0, round(abs(sl), 2)),
+            'stoploss': abs((ltp - prices[0]) if buy_sell == 'BUY' else (prices[1] - ltp)),
             'squareoff': round(ltp * 0.05, 1),
             'quantity': quantity,
         }
