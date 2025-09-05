@@ -119,6 +119,43 @@ class AngelOneClient:
             print(e)
             return None
 
+    # def hist_data_09200(
+    #     self,
+    #     tickers: List[str],
+    #     duration: int,
+    #     interval: str,
+    #     instrument_list: List[Dict[str, Union[str, int]]],
+    #     exchange: str = 'NSE',
+    # ) -> Dict[str, pd.DataFrame]:
+    #     """Get historical data at 9:20 am."""
+    #     hist_data_tickers: Dict[str, pd.DataFrame] = {}
+    #     for ticker in tickers:
+    #         time.sleep(0.4)
+    #         params: Dict[str, Union[str, int]] = {
+    #             'exchange': exchange,
+    #             'symboltoken': token_lookup(ticker, instrument_list),
+    #             'interval': interval,
+    #             'fromdate': (
+    #                 dt.date.today() - dt.timedelta(duration)
+    #             ).strftime('%Y-%m-%d %H:%M'),
+    #             'todate': dt.date.today().strftime('%Y-%m-%d') + ' 09:19',
+    #         }
+    #         try:
+    #             hist_data = self.smart_api.getCandleData(params)
+    #             df_data: pd.DataFrame = pd.DataFrame(
+    #                 hist_data['data'],
+    #                 columns=['date', 'open', 'high', 'low', 'close', 'volume'],
+    #             )
+    #             df_data.set_index('date', inplace=True)
+    #             df_data.index = pd.to_datetime(df_data.index)
+    #             df_data.index = df_data.index.tz_localize(None)
+    #             df_data['gap'] = (
+    #                 (df_data['open'] / df_data['close'].shift(1)) - 1
+    #             ) * 100
+    #             hist_data_tickers[ticker] = df_data
+    #         except Exception as e:
+    #             print(e)
+    #     return hist_data_tickers
     def hist_data_0920(
         self,
         tickers: List[str],
@@ -126,33 +163,55 @@ class AngelOneClient:
         interval: str,
         instrument_list: List[Dict[str, Union[str, int]]],
         exchange: str = 'NSE',
+        retries: int = 5,
+        delay: float = 10.0,
     ) -> Dict[str, pd.DataFrame]:
-        """Get historical data at 9:20 am."""
+        """Get historical data at 9:20 am with retry support."""
         hist_data_tickers: Dict[str, pd.DataFrame] = {}
+
         for ticker in tickers:
-            time.sleep(0.4)
+            token = token_lookup(ticker, instrument_list)
+            if not token:
+                print(f"⚠️ No token found for {ticker}, skipping.")
+                continue
+
             params: Dict[str, Union[str, int]] = {
                 'exchange': exchange,
-                'symboltoken': token_lookup(ticker, instrument_list),
+                'symboltoken': token,
                 'interval': interval,
                 'fromdate': (
                     dt.date.today() - dt.timedelta(duration)
                 ).strftime('%Y-%m-%d %H:%M'),
                 'todate': dt.date.today().strftime('%Y-%m-%d') + ' 09:19',
             }
-            try:
-                hist_data = self.smart_api.getCandleData(params)
-                df_data: pd.DataFrame = pd.DataFrame(
-                    hist_data['data'],
-                    columns=['date', 'open', 'high', 'low', 'close', 'volume'],
-                )
-                df_data.set_index('date', inplace=True)
-                df_data.index = pd.to_datetime(df_data.index)
-                df_data.index = df_data.index.tz_localize(None)
-                df_data['gap'] = (
-                    (df_data['open'] / df_data['close'].shift(1)) - 1
-                ) * 100
-                hist_data_tickers[ticker] = df_data
-            except Exception as e:
-                print(e)
+
+            df_data = pd.DataFrame()
+            for attempt in range(1, retries + 1):
+                try:
+                    time.sleep(0.4)  # rate limiting
+                    hist_data = self.smart_api.getCandleData(params)
+
+                    if hist_data and hist_data.get("status") and hist_data.get("data"):
+                        df_data = pd.DataFrame(
+                            hist_data["data"],
+                            columns=["date", "open", "high", "low", "close", "volume"],
+                        )
+                        df_data.set_index("date", inplace=True)
+                        df_data.index = pd.to_datetime(df_data.index)
+                        df_data.index = df_data.index.tz_localize(None)
+                        df_data["gap"] = (
+                            (df_data["open"] / df_data["close"].shift(1)) - 1
+                        ) * 100
+                        hist_data_tickers[ticker] = df_data
+                        break  # success, exit retry loop
+                    else:
+                        print(f"⚠️ Empty response for {ticker} (attempt {attempt}/{retries})")
+                except Exception as e:
+                    print(f"⚠️ Error fetching {ticker} (attempt {attempt}/{retries}): {e}")
+
+                time.sleep(delay * attempt)  # exponential backoff
+
+            if df_data.empty:
+                print(f"❌ Failed to fetch data for {ticker} after {retries} attempts.")
+
         return hist_data_tickers
