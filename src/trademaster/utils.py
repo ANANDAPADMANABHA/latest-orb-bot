@@ -84,3 +84,16 @@ def get_stock_tickers(sheet_name: str, worksheet_name: str = 'Sheet1') -> list:
 
 # ORB_TICKERS = get_stock_tickers(sheet_name='trade-master')
 # print(ORB_TICKERS)
+
+def calculate_quantity(capital, entry_price, stop_loss_price, risk_pct=0.01, rr=2):
+    risk_per_trade = capital * risk_pct
+    per_share_risk = abs(entry_price - stop_loss_price)
+    quantity = int(risk_per_trade // per_share_risk)
+    
+    # Target based on R:R
+    if entry_price > stop_loss_price:  # BUY
+        target_price = entry_price + (per_share_risk * rr)
+    else:  # SELL
+        target_price = entry_price - (per_share_risk * rr)
+    
+    return quantity, target_price

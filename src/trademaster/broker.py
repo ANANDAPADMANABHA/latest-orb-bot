@@ -9,7 +9,7 @@ import pandas as pd
 from pyotp import TOTP
 from SmartApi import SmartConnect
 
-from src.trademaster.utils import token_lookup
+from src.trademaster.utils import token_lookup, calculate_quantity
 
 
 class AngelOneClient:
@@ -88,6 +88,9 @@ class AngelOneClient:
             stop_loss_price = limit_price * 1.01   # 1% above
         else:  # BUY
             stop_loss_price = limit_price * 0.99   # 1% below
+
+        capital = 5000
+        quantity, target_price= calculate_quantity(capital, limit_price, stop_loss_price, risk_pct=0.01, rr=2)
         params: Dict[str, Union[str, int, float]] = {
             'variety': 'ROBO',
             'tradingsymbol': '{}-EQ'.format(ticker),
@@ -99,11 +102,11 @@ class AngelOneClient:
             'price': limit_price,
             'duration': 'DAY',
             'stoploss': stop_loss_price,
-            'squareoff': round(ltp * 0.05, 1),
+            'squareoff': round(target_price, 1),
             'quantity': quantity,
         }
         try:
-            print('Payload :', params)
+            print('Payload of robo order:', params)
             response = self.smart_api.placeOrder(params)
             return response
         except Exception as e:
@@ -137,7 +140,7 @@ class AngelOneClient:
             "stoploss": "0",
             "quantity": quantity,
         }
-
+        print('payload of market order', params)
         try:
             response = self.smart_api.placeOrder(params)
             return response

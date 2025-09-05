@@ -33,14 +33,6 @@ class OpeningRangeBreakout(AngelOneClient):
                 if response:
                     return True
 
-                # check if failed due to cautionary listing
-                else:
-                    # print(f"⚠️ {ticker} is under cautionary listing. Placing MARKET order instead.")
-                    market_resp = self.place_market_order(instrument_list, ticker, side, quantity)
-                    print('response of place market order' , response)
-                    if market_resp:
-                        return True
-
                 print(f"[Attempt {attempt}] {side} order failed for {ticker}, retrying...")
 
             except Exception as e:
