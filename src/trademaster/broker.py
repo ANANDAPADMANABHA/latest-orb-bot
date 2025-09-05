@@ -101,7 +101,7 @@ class AngelOneClient:
             'producttype': 'BO',
             'price': limit_price,
             'duration': 'DAY',
-            'stoploss': stop_loss_price,
+            'stoploss': round(stop_loss_price, 1),
             'squareoff': round(target_price, 1),
             'quantity': quantity,
         }
