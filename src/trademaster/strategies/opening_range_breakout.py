@@ -29,7 +29,7 @@ class OpeningRangeBreakout(AngelOneClient):
         for attempt in range(1, retries + 1):
             try:
                 response = self.place_robo_order(instrument_list, ticker, side, hi_lo_price, quantity)
-
+                print('response of place robo order' , response)
                 if response and response.get("status"):
                     return True
 
@@ -37,6 +37,7 @@ class OpeningRangeBreakout(AngelOneClient):
                 if response and response.get("errorcode") == "AB4036":
                     print(f"⚠️ {ticker} is under cautionary listing. Placing MARKET order instead.")
                     market_resp = self.place_market_order(instrument_list, ticker, side, quantity)
+                    print('response of place robo order' , response)
                     if market_resp and market_resp.get("status"):
                         return True
 
