@@ -83,6 +83,7 @@ class AngelOneClient:
         ltp: Optional[float] = self.get_ltp(instrument_list, ticker, exchange)
         if not ltp:
             return None
+        sl = (ltp - prices[0]) if buy_sell == 'BUY' else (prices[1] - ltp)
         params: Dict[str, Union[str, int, float]] = {
             'variety': 'ROBO',
             'tradingsymbol': '{}-EQ'.format(ticker),
@@ -93,9 +94,7 @@ class AngelOneClient:
             'producttype': 'BO',
             'price': ltp + 1 if buy_sell == 'BUY' else ltp - 1,
             'duration': 'DAY',
-            'stoploss': (ltp - prices[0])
-            if buy_sell == 'BUY'
-            else (prices[1] - ltp),
+            'stoploss': max(1.0, round(abs(sl), 2)),
             'squareoff': round(ltp * 0.05, 1),
             'quantity': quantity,
         }
@@ -104,6 +103,41 @@ class AngelOneClient:
             return response
         except Exception as e:
             print(e)
+            return None
+
+    def place_market_order(
+    self,
+    instrument_list: List[Dict[str, Union[str, int]]],
+    ticker: str,
+    buy_sell: str,
+    quantity: int,
+    exchange: str = "NSE",
+    ) -> Optional[Dict[str, Union[str, int]]]:
+        """Place a market order."""
+        ltp: Optional[float] = self.get_ltp(instrument_list, ticker, exchange)
+        if not ltp:
+            return None
+
+        params: Dict[str, Union[str, int, float]] = {
+            "variety": "NORMAL",
+            "tradingsymbol": f"{ticker}-EQ",
+            "symboltoken": token_lookup(ticker, instrument_list),
+            "transactiontype": buy_sell,
+            "exchange": exchange,
+            "ordertype": "MARKET",
+            "producttype": "INTRADAY",   # Can change to CNC if delivery
+            "duration": "DAY",
+            "price": ltp,                # For MARKET order, broker ignores price
+            "squareoff": "0",
+            "stoploss": "0",
+            "quantity": quantity,
+        }
+
+        try:
+            response = self.smart_api.placeOrder(params)
+            return response
+        except Exception as e:
+            print(f"Market order failed: {e}")
             return None
 
     def get_open_orders(self) -> Optional[pd.DataFrame]:

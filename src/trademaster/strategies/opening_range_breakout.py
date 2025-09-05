@@ -21,16 +21,27 @@ class OpeningRangeBreakout(AngelOneClient):
         quantity: int,
         retries: int = 3,
         delay: float = 2.0,
-    ) -> bool:
+        ) -> bool:
         """
         Wrapper for place_robo_order with retry mechanism.
+        Falls back to market order if token is under cautionary listings (AB4036).
         """
         for attempt in range(1, retries + 1):
             try:
-                if self.place_robo_order(instrument_list, ticker, side, hi_lo_price, quantity):
+                response = self.place_robo_order(instrument_list, ticker, side, hi_lo_price, quantity)
+
+                if response and response.get("status"):
                     return True
-                else:
-                    print(f"[Attempt {attempt}] {side} order failed for {ticker}, retrying...")
+
+                # check if failed due to cautionary listing
+                if response and response.get("errorcode") == "AB4036":
+                    print(f"⚠️ {ticker} is under cautionary listing. Placing MARKET order instead.")
+                    market_resp = self.place_market_order(instrument_list, ticker, side, quantity)
+                    if market_resp and market_resp.get("status"):
+                        return True
+
+                print(f"[Attempt {attempt}] {side} order failed for {ticker}, retrying...")
+
             except Exception as e:
                 print(f"[Attempt {attempt}] Exception while placing {side} order for {ticker}: {e}")
 
@@ -38,6 +49,7 @@ class OpeningRangeBreakout(AngelOneClient):
 
         print(f"❌ Failed to place {side} order for {ticker} after {retries} attempts.")
         return False
+
 
     def orb_strat(
         self,
