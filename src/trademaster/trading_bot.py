@@ -4,10 +4,11 @@ import sys
 # sys.path.append('D:\projects\Trade-master')
 import pandas as pd
 
-from src.trademaster.data_loader import ORB_TICKERS
 from src.trademaster.strategies.opening_range_breakout import (
     OpeningRangeBreakout,
 )
+from src.trademaster.utils import get_stock_tickers
+
 
 
 class TradeMaster(OpeningRangeBreakout):
@@ -17,6 +18,8 @@ class TradeMaster(OpeningRangeBreakout):
         hi_lo_prices = {}
         self._load_instrument_list()
         self._initialize_smart_api()
+        # ✅ Always fetch the latest tickers from Google Sheets
+        ORB_TICKERS = get_stock_tickers(sheet_name='trade-master')
         data_0920 = self.hist_data_0920(
             ORB_TICKERS, 4, 'FIVE_MINUTE', self.instrument_list
         )
