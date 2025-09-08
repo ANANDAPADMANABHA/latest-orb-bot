@@ -50,6 +50,4 @@ class TradeMaster(OpeningRangeBreakout):
         self.log_pnl()
         print('bot exiting after market time')
 
-# trade = TradeMaster()
-# trade.make_some_money()
 
