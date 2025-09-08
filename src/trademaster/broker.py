@@ -70,6 +70,27 @@ class AngelOneClient:
             print(f'Exception getltp {e}')
         return None
 
+    def get_trade_capital(self) -> int:
+        """
+        Fetch the available trading capital (cash balance) from SmartAPI.
+        Returns:
+            int: Available cash (rounded) that can be used for trading.
+        """
+        try:
+            response = self.smart_api.rmsLimit()
+            data = response.get("data", {})
+
+            if not data:
+                return 0
+
+            # Available cash for trading (rounded)
+            available_capital = float(data.get("availablecash", 0.0))
+            return round(available_capital)   # ✅ round to nearest integer
+
+        except Exception as e:
+            print("Error fetching capital:", e)
+            return 0
+    
     def place_robo_order(
         self,
         instrument_list: List[Dict[str, Union[str, int]]],
@@ -89,7 +110,7 @@ class AngelOneClient:
         else:  # BUY
             stop_loss_price = limit_price * 0.99   # 1% below
 
-        capital = 5000
+        capital = self.get_trade_capital()
         quantity, target_price= calculate_quantity(capital, limit_price, stop_loss_price, risk_pct=0.01, rr=2)
         params: Dict[str, Union[str, int, float]] = {
             'variety': 'ROBO',
