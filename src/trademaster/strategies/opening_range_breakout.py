@@ -6,7 +6,6 @@ import pandas as pd
 
 from src.trademaster.broker import AngelOneClient
 from src.trademaster.utils import token_lookup, Colors
-from src.trademaster.utils import log_trade_to_csv
 
 
 class OpeningRangeBreakout(AngelOneClient):
@@ -105,12 +104,6 @@ class OpeningRangeBreakout(AngelOneClient):
                         if self.safe_place_robo_order(
                             self.instrument_list, ticker, "BUY", hi_lo_prices[ticker], quantity
                         ):
-                            log_trade_to_csv(
-                                ticker,
-                                "BUY",
-                                df_data["close"].iloc[-1],
-                                filename="trade_log.csv",
-                            )
                             print(
                                 f"{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}"
                             )
@@ -121,12 +114,6 @@ class OpeningRangeBreakout(AngelOneClient):
                         if self.safe_place_robo_order(
                             self.instrument_list, ticker, "SELL", hi_lo_prices[ticker], quantity
                         ):
-                            log_trade_to_csv(
-                                ticker,
-                                "SELL",
-                                df_data["close"].iloc[-1],
-                                filename="trade_log.csv",
-                            )
                             print(
                                 f"{Colors.RED}Sold {quantity} stocks of {ticker}{Colors.RESET}"
                             )
