@@ -24,3 +24,4 @@ app.conf.beat_schedule = {
         'schedule': crontab(minute=20, hour=9, day_of_week='mon-fri'),
     },
 }
+
