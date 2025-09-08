@@ -9,7 +9,7 @@ import pandas as pd
 from pyotp import TOTP
 from SmartApi import SmartConnect
 
-from src.trademaster.utils import token_lookup, calculate_quantity
+from src.trademaster.utils import token_lookup, calculate_quantity, log_trade_to_sheet
 
 
 class AngelOneClient:
@@ -160,44 +160,27 @@ class AngelOneClient:
         except Exception as e:
             print(e)
             return None
+        
+    def log_pnl(self):
+        response = self.smart_api.position()
+        data = response.get("data", [])
+        trades = []
+        date_str = dt.datetime.now().strftime("%Y-%m-%d")  # ✅ only date
 
-    # def hist_data_09200(
-    #     self,
-    #     tickers: List[str],
-    #     duration: int,
-    #     interval: str,
-    #     instrument_list: List[Dict[str, Union[str, int]]],
-    #     exchange: str = 'NSE',
-    # ) -> Dict[str, pd.DataFrame]:
-    #     """Get historical data at 9:20 am."""
-    #     hist_data_tickers: Dict[str, pd.DataFrame] = {}
-    #     for ticker in tickers:
-    #         time.sleep(0.4)
-    #         params: Dict[str, Union[str, int]] = {
-    #             'exchange': exchange,
-    #             'symboltoken': token_lookup(ticker, instrument_list),
-    #             'interval': interval,
-    #             'fromdate': (
-    #                 dt.date.today() - dt.timedelta(duration)
-    #             ).strftime('%Y-%m-%d %H:%M'),
-    #             'todate': dt.date.today().strftime('%Y-%m-%d') + ' 09:19',
-    #         }
-    #         try:
-    #             hist_data = self.smart_api.getCandleData(params)
-    #             df_data: pd.DataFrame = pd.DataFrame(
-    #                 hist_data['data'],
-    #                 columns=['date', 'open', 'high', 'low', 'close', 'volume'],
-    #             )
-    #             df_data.set_index('date', inplace=True)
-    #             df_data.index = pd.to_datetime(df_data.index)
-    #             df_data.index = df_data.index.tz_localize(None)
-    #             df_data['gap'] = (
-    #                 (df_data['open'] / df_data['close'].shift(1)) - 1
-    #             ) * 100
-    #             hist_data_tickers[ticker] = df_data
-    #         except Exception as e:
-    #             print(e)
-    #     return hist_data_tickers
+        for item in data:
+            trades.append({
+                "date": date_str,
+                "symbol": item.get("symbolname"),
+                "pnl": item.get("pnl"),
+                "quantity": item.get("sellqty")
+            })
+
+        # ✅ log to Google Sheet
+        log_trade_to_sheet("trade-master", "PnL", trades)
+        
+
+        return trades
+
     def hist_data_0920(
         self,
         tickers: List[str],

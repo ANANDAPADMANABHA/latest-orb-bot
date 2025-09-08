@@ -47,6 +47,7 @@ class TradeMaster(OpeningRangeBreakout):
             time.sleep(300 - ((time.time() - starttime) % 300.0))
         now = dt.datetime.now()
         print(now)
+        self.log_pnl()
         print('bot exiting after market time')
 
 # trade = TradeMaster()

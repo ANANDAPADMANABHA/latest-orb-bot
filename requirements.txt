@@ -54,3 +54,4 @@ redis
 python-dotenv
 gspread
 oauth2client
+gspread-formatting
