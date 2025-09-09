@@ -21,7 +21,7 @@ app.autodiscover_tasks(['cronjobs'])
 app.conf.beat_schedule = {
     'run-trade-task-every-morning': {
         'task': 'cronjobs.tasks.run_trade_task',
-        'schedule': crontab(minute=10, hour=10, day_of_week='mon-fri'),
+        'schedule': crontab(minute=9, hour=20, day_of_week='mon-fri'),
     },
 }
 
