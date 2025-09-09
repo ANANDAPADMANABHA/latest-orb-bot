@@ -106,9 +106,9 @@ class AngelOneClient:
             return None
         limit_price =ltp + 1 if buy_sell == 'BUY' else ltp - 1
         if buy_sell == "SELL":
-            stop_loss_price = limit_price * 1.01   # 1% above
+            stop_loss_price = limit_price * 1.02   # 1% above
         else:  # BUY
-            stop_loss_price = limit_price * 0.99   # 1% below
+            stop_loss_price = limit_price * 0.98   # 1% below
 
         capital = self.get_trade_capital()
         quantity, target_price= calculate_quantity(capital, limit_price, stop_loss_price, risk_pct=0.01, rr=2)
@@ -185,6 +185,9 @@ class AngelOneClient:
     def log_pnl(self):
         response = self.smart_api.position()
         data = response.get("data", [])
+        if not data:
+            print('No trades today')
+            return
         trades = []
         date_str = dt.datetime.now().strftime("%Y-%m-%d")  # ✅ only date
 
@@ -261,3 +264,114 @@ class AngelOneClient:
                 print(f"❌ Failed to fetch data for {ticker} after {retries} attempts.")
 
         return hist_data_tickers
+
+
+    def place_oco_orders(
+        self,
+        instrument_list,
+        ticker: str,
+        buy_sell: str,
+        ltp: float,
+        quantity: int,
+        exchange: str = 'NSE',
+        stoploss_pct: float = 0.02, # Use a higher percentage
+        target_pct: float = 0.04,   # Use a higher percentage
+    ) -> Optional[Dict]:
+        """
+        Places a main order, followed by a stop-loss and a target order.
+        Returns the main order's response or None on failure.
+        """
+        try:
+            # 1. Calculate prices for SL and Target
+            if buy_sell == 'BUY':
+                sl_price = round(ltp * (1 - stoploss_pct), 2)
+                target_price = round(ltp * (1 + target_pct), 2)
+                sl_transaction_type = 'SELL'
+                target_transaction_type = 'SELL'
+            else: # SELL
+                sl_price = round(ltp * (1 + stoploss_pct), 2)
+                target_price = round(ltp * (1 - target_pct), 2)
+                sl_transaction_type = 'BUY'
+                target_transaction_type = 'BUY'
+
+            # 2. Place the Main Order (as an intraday MARKET order for simplicity)
+            main_order_params = {
+                'variety': 'NORMAL',
+                'tradingsymbol': f"{ticker}-EQ",
+                'symboltoken': token_lookup(ticker, instrument_list),
+                'transactiontype': buy_sell,
+                'exchange': exchange,
+                'ordertype': 'MARKET', # Or 'LIMIT' based on your strategy
+                'producttype': 'MIS',
+                'quantity': quantity,
+            }
+            print(f"Placing main {buy_sell} order for {ticker}: {main_order_params}")
+            main_order_response = self.smart_api.placeOrder(main_order_params)
+            print('respnse of main order : ', main_order_response)
+            # Check if the main order was placed successfully
+            if main_order_response and 'orderid' in main_order_response.get('data', {}):
+                main_order_id = main_order_response['data']['orderid']
+
+                # 3. Place the Stop-Loss Order
+                sl_order_params = {
+                    'variety': 'NORMAL',
+                    'tradingsymbol': f"{ticker}-EQ",
+                    'symboltoken': token_lookup(ticker, instrument_list),
+                    'transactiontype': sl_transaction_type,
+                    'exchange': exchange,
+                    'ordertype': 'STOPLOSS_LIMIT',
+                    'producttype': 'MIS',
+                    'price': sl_price,
+                    'triggerprice': sl_price, # Simplified trigger price
+                    'quantity': quantity,
+                }
+                print(f"Placing SL order for {ticker}: {sl_order_params}")
+                sl_order_response = self.smart_api.placeOrder(sl_order_params) # No need to store response for now
+                print('respnse of sl_order : ', sl_order_response)
+                # 4. Place the Target Order
+                target_order_params = {
+                    'variety': 'NORMAL',
+                    'tradingsymbol': f"{ticker}-EQ",
+                    'symboltoken': token_lookup(ticker, instrument_list),
+                    'transactiontype': target_transaction_type,
+                    'exchange': exchange,
+                    'ordertype': 'LIMIT',
+                    'producttype': 'MIS',
+                    'price': target_price,
+                    'quantity': quantity,
+                }
+                print(f"Placing Target order for {ticker}: {target_order_params}")
+                target_order_response = self.smart_api.placeOrder(target_order_params) # No need to store response
+                print('respnse of target_order : ', target_order_response)
+                return main_order_response
+            
+            return None # Main order failed
+
+        except Exception as e:
+            print(f"Error in place_oco_orders: {e}")
+            return None
+        
+
+    def cancel_pending_oco_order(self, orders: pd.DataFrame, ticker: str):
+        """
+        Monitors orders for a specific ticker and cancels the other leg of an OCO pair.
+        """
+        filled_order = orders[
+            (orders['tradingsymbol'] == f"{ticker}-EQ") & (orders['status'].isin(['complete', 'executed']))
+        ]
+        
+        open_order = orders[
+            (orders['tradingsymbol'] == f"{ticker}-EQ") & (orders['status'] == 'open')
+        ]
+        
+        if not filled_order.empty and not open_order.empty:
+            order_to_cancel = open_order.iloc[0]
+            try:
+                print(f"Cancelling open order {order_to_cancel['orderid']} for {ticker}")
+                self.smart_api.cancelOrder(
+                    orderid=order_to_cancel['orderid'],
+                    variety='NORMAL'
+                )
+                print(f"Successfully cancelled the other leg for {ticker}.")
+            except Exception as e:
+                print(f"Error cancelling order for {ticker}: {e}")
