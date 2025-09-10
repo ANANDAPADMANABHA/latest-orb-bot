@@ -44,12 +44,12 @@ class TradeMaster(OpeningRangeBreakout):
             positions = pd.DataFrame(self.smart_api.position()['data'])
             open_orders = self.get_open_orders()
 
-            try:
-                open_orders_df = pd.DataFrame(self.smart_api.orderBook()['data'])
-                for ticker in ORB_TICKERS:
-                    self.cancel_pending_oco_order(open_orders_df, ticker)
-            except Exception as e:
-                print(e)
+            # try:
+            #     open_orders_df = pd.DataFrame(self.smart_api.orderBook()['data'])
+            #     for ticker in ORB_TICKERS:
+            #         self.cancel_pending_oco_order(open_orders_df, ticker)
+            # except Exception as e:
+            #     print(e)
             
             self.orb_strat(ORB_TICKERS, hi_lo_prices, positions, open_orders)
             time.sleep(300 - ((time.time() - starttime) % 300.0))
