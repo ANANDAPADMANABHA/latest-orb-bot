@@ -54,6 +54,6 @@ class TradeMaster(OpeningRangeBreakout):
             self.orb_strat(ORB_TICKERS, hi_lo_prices, positions, open_orders)
             time.sleep(300 - ((time.time() - starttime) % 300.0))
         now = dt.datetime.now()
-        print(now)
+        print('current_time',now)
         self.log_pnl()
         print('bot exiting after market time')
