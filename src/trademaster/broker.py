@@ -169,6 +169,58 @@ class AngelOneClient:
             print(f"Market order failed: {e}")
             return None
 
+
+    def place_bracket_order(
+        self,
+        instrument_list,
+        ticker: str,
+        buy_sell: str,
+        quantity: int,
+        stoploss_price: float,
+        target_price: float,
+        exchange: str = "NSE",
+    ) -> None:
+        """Mimic Bracket Order: Entry + Stoploss + Target."""
+        # Step 1: Place entry market order
+        entry = self.place_market_order(instrument_list, ticker, buy_sell, quantity, exchange)
+        if not entry:
+            print("Entry order failed, aborting bracket order")
+            return
+
+        # Step 2: Opposite side stoploss
+        opposite = "SELL" if buy_sell == "BUY" else "BUY"
+        sl_order = {
+            "variety": "STOPLOSS",
+            "tradingsymbol": f"{ticker}-EQ",
+            "symboltoken": token_lookup(ticker, instrument_list),
+            "transactiontype": opposite,
+            "exchange": exchange,
+            "ordertype": "STOPLOSS_MARKET",
+            "producttype": "INTRADAY",
+            "duration": "DAY",
+            "triggerprice": stoploss_price,
+            "quantity": quantity,
+        }
+        print("=-=-=-=-=-=-")
+        a = self.smart_api.placeOrderFullResponse(sl_order)
+        print(a)
+        # Step 3: Opposite side target
+        target_order = {
+            "variety": "NORMAL",
+            "tradingsymbol": f"{ticker}-EQ",
+            "symboltoken": token_lookup(ticker, instrument_list),
+            "transactiontype": opposite,
+            "exchange": exchange,
+            "ordertype": "LIMIT",
+            "producttype": "INTRADAY",
+            "duration": "DAY",
+            "price": target_price,
+            "quantity": quantity,
+        }
+        b = self.smart_api.placeOrderFullResponse(target_order)
+        print(b)
+        print("Bracket order placed with Stoploss & Target")
+
     def get_open_orders(self) -> Optional[pd.DataFrame]:
         """Retrieve open orders."""
         try:

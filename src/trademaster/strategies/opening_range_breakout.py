@@ -69,7 +69,7 @@ class OpeningRangeBreakout(AngelOneClient):
             time.sleep(0.4)
             params = {
                 "exchange": exchange,
-                "symboltoken": token_lookup("WIPRO", self.instrument_list),
+                "symboltoken": token_lookup(ticker, self.instrument_list),
                 "interval": "FIVE_MINUTE",
                 "fromdate": (dt.date.today() - dt.timedelta(4)).strftime("%Y-%m-%d %H:%M"),
                 "todate": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -97,40 +97,33 @@ class OpeningRangeBreakout(AngelOneClient):
                     print(
                         f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
                     )
+                    ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
                     if (
                         df_data["close"].iloc[-1] >= hi_lo_prices[ticker][0]
                         and df_data["low"].iloc[-1] >= hi_lo_prices[ticker][1]
                     ):
-                        # ltp = self.get_ltp(self.instrument_list, ticker, exchange) # You need to get the latest price
-                        # if ltp and self.place_oco_orders(
-                        #     self.instrument_list, ticker, "BUY", ltp, quantity
-                        # ):
-                        #     print(
-                        #         f"{Colors.GREEN}Bought {quantity} stocks of {ticker} with OCO orders{Colors.RESET}"
-                        #     )
-                        if self.safe_place_robo_order(
-                            self.instrument_list, ticker, "BUY", hi_lo_prices[ticker], quantity
-                        ):
-                            print(
+                        
+                        sl = round(ltp * 0.99, 2)     # 1% below
+                        tgt = round(ltp * 1.02, 2)    # 2% above
+                        self.place_bracket_order(
+                            self.instrument_list, ticker, "BUY", quantity, sl, tgt, exchange
+                        )
+               
+                        print(
                                 f"{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}"
                             )
                     elif (
                         df_data["close"].iloc[-1] <= hi_lo_prices[ticker][1]
                         and df_data["high"].iloc[-1] <= hi_lo_prices[ticker][0]
                     ):
-                    #     ltp = self.get_ltp(self.instrument_list, ticker, exchange) # Get the latest price
-                    # if ltp and self.place_oco_orders(
-                    #     self.instrument_list, ticker, "SELL", ltp, quantity
-                    # ):
-                    #     print(
-                    #         f"{Colors.RED}Sold {quantity} stocks of {ticker} with OCO orders{Colors.RESET}"
-                    #     )
-                        if self.safe_place_robo_order(
-                            self.instrument_list, ticker, "SELL", hi_lo_prices[ticker], quantity
-                        ):
-                            print(
-                                f"{Colors.RED}Sold {quantity} stocks of {ticker}{Colors.RESET}"
-                            )
+                        sl = round(ltp * 1.01, 2)     # 1% above
+                        tgt = round(ltp * 0.98, 2)    # 2% below
+                        self.place_bracket_order(
+                            self.instrument_list, ticker, "SELL", quantity, sl, tgt, exchange
+                        )
+                        print(
+                            f"{Colors.RED}Sold {quantity} stocks of {ticker}{Colors.RESET}"
+                        )
                 else:
                     print(f"{Colors.YELLOW}NO TRADE : {ticker}{Colors.RESET}")
             except Exception as e:
