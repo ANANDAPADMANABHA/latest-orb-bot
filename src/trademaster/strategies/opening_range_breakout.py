@@ -54,7 +54,7 @@ class OpeningRangeBreakout(AngelOneClient):
         """
         Implements an Opening Range Breakout (ORB) strategy for given tickers.
         """
-        quantity = 3
+        quantity = 1
         if not positions.empty:
             tickers = [
                 i for i in tickers if i + "-EQ" not in positions["tradingsymbol"].to_list()
