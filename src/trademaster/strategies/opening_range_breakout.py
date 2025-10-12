@@ -103,8 +103,8 @@ class OpeningRangeBreakout(AngelOneClient):
                         and df_data["low"].iloc[-1] >= hi_lo_prices[ticker][1]
                     ):
                         
-                        sl = round(ltp * 0.99, 2)     # 1% below
-                        tgt = round(ltp * 1.02, 2)    # 2% above
+                        sl = round(ltp * 0.99)     # 1% below
+                        tgt = round(ltp * 1.02)    # 2% above
                         self.place_bracket_order(
                             self.instrument_list, ticker, "BUY", quantity, sl, tgt, exchange
                         )
@@ -116,8 +116,8 @@ class OpeningRangeBreakout(AngelOneClient):
                         df_data["close"].iloc[-1] <= hi_lo_prices[ticker][1]
                         and df_data["high"].iloc[-1] <= hi_lo_prices[ticker][0]
                     ):
-                        sl = round(ltp * 1.01, 2)     # 1% above
-                        tgt = round(ltp * 0.98, 2)    # 2% below
+                        sl = round(ltp * 1.01)     # 1% above
+                        tgt = round(ltp * 0.98)    # 2% below
                         self.place_bracket_order(
                             self.instrument_list, ticker, "SELL", quantity, sl, tgt, exchange
                         )
