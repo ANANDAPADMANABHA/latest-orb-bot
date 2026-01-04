@@ -68,12 +68,12 @@ def calculate_quantity(capital, entry_price, stop_loss_price, risk_pct=0.01, rr=
     quantity = int(risk_per_trade // per_share_risk)
     
     # Target based on R:R
-    if entry_price > stop_loss_price:  # BUY
-        target_price = entry_price + (per_share_risk * rr)
-    else:  # SELL
-        target_price = entry_price - (per_share_risk * rr)
+    # if entry_price > stop_loss_price:  # BUY
+    #     target_price = entry_price + (per_share_risk * rr)
+    # else:  # SELL
+    #     target_price = entry_price - (per_share_risk * rr)
     
-    return quantity, target_price
+    return quantity
 
 
 def log_trade_to_sheets(sheet_name: str, worksheet_name: str, trades: list):
@@ -110,17 +110,19 @@ def log_trade_to_sheet(sheet_name: str, worksheet_name: str, trades: list):
     
     client = gspread.authorize(credentials)
     sheet = client.open(sheet_name).worksheet(worksheet_name)
-    
+    print('-=-=-=-=-')
     for trade in trades:
         # Append the row
+        print('-=-=-=-=-')
         sheet.append_row([trade['date'], trade['symbol'], trade['quantity'], trade['pnl']])
         
         # Find the last row number
+        print('-=-=-=-=-')
         last_row = len(sheet.get_all_values())
-        
+        print('-=-=-=-=-')
         # Convert PnL to float for checking
         pnl_value = float(trade['pnl'])
-        
+        print('-=-=-=-=-')
         # ✅ Define formatting (text color + light background)
         if pnl_value >= 0:
             fmt = CellFormat(

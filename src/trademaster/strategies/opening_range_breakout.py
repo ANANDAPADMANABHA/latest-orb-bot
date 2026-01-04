@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 from src.trademaster.broker import AngelOneClient
-from src.trademaster.utils import token_lookup, Colors
+from src.trademaster.utils import token_lookup, Colors, calculate_quantity
 
 
 class OpeningRangeBreakout(AngelOneClient):
@@ -54,7 +54,7 @@ class OpeningRangeBreakout(AngelOneClient):
         """
         Implements an Opening Range Breakout (ORB) strategy for given tickers.
         """
-        quantity = 1
+        capital = 5000
         if not positions.empty:
             tickers = [
                 i for i in tickers if i + "-EQ" not in positions["tradingsymbol"].to_list()
@@ -92,19 +92,20 @@ class OpeningRangeBreakout(AngelOneClient):
                     df_data["avg_vol"].iloc[-1],
                 )
 
-                if df_data["volume"].iloc[-1] >= df_data["avg_vol"].iloc[-1]:
-                    print("ALERT..............!")
-                    print(
-                        f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
-                    )
-                    ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
-                    if (
+                # if df_data["volume"].iloc[-1] >= df_data["avg_vol"].iloc[-1]:
+                #     print("ALERT..............!")
+                #     print(
+                #         f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
+                #     )
+                ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
+                if (
                         df_data["close"].iloc[-1] >= hi_lo_prices[ticker][0]
                         and df_data["low"].iloc[-1] >= hi_lo_prices[ticker][1]
                     ):
                         
                         sl = round(ltp * 0.99)     # 1% below
                         tgt = round(ltp * 1.02)    # 2% above
+                        quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
                         self.place_bracket_order(
                             self.instrument_list, ticker, "BUY", quantity, sl, tgt, exchange
                         )
@@ -112,12 +113,13 @@ class OpeningRangeBreakout(AngelOneClient):
                         print(
                                 f"{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}"
                             )
-                    elif (
+                elif (
                         df_data["close"].iloc[-1] <= hi_lo_prices[ticker][1]
                         and df_data["high"].iloc[-1] <= hi_lo_prices[ticker][0]
                     ):
                         sl = round(ltp * 1.01)     # 1% above
                         tgt = round(ltp * 0.98)    # 2% below
+                        quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
                         self.place_bracket_order(
                             self.instrument_list, ticker, "SELL", quantity, sl, tgt, exchange
                         )
