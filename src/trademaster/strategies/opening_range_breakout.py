@@ -54,6 +54,7 @@ class OpeningRangeBreakout(AngelOneClient):
         """
         Implements an Opening Range Breakout (ORB) strategy for given tickers.
         """
+        
         capital = 5000
         if not positions.empty:
             tickers = [
@@ -86,10 +87,18 @@ class OpeningRangeBreakout(AngelOneClient):
                 df_data["avg_vol"] = df_data["volume"].rolling(10).mean().shift(1)
 
                 print(
-                    "current_volume: ",
-                    df_data["volume"].iloc[-1],
-                    "average volume: ",
-                    df_data["avg_vol"].iloc[-1],
+                f"[DATA] {ticker} | "
+                f"O:{df_data['open'].iloc[-1]} "
+                f"H:{df_data['high'].iloc[-1]} "
+                f"L:{df_data['low'].iloc[-1]} "
+                f"C:{df_data['close'].iloc[-1]} "
+                f"CurrentV:{df_data['volume'].iloc[-1]} "
+                f"AvgV:{df_data['avg_vol'].iloc[-1]}"
+                )
+                print(
+                f"[ORB LEVELS] {ticker} | "
+                f"High:{hi_lo_prices[ticker][0]} "
+                f"Low:{hi_lo_prices[ticker][1]}"
                 )
 
                 # if df_data["volume"].iloc[-1] >= df_data["avg_vol"].iloc[-1]:
@@ -98,6 +107,8 @@ class OpeningRangeBreakout(AngelOneClient):
                 #         f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
                 #     )
                 ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
+                print(f"Ltp of {ticker} is {ltp}")
+                print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-1]} and previous candle low is {df_data["low"].iloc[-1]}")
                 if (
                         df_data["close"].iloc[-1] >= hi_lo_prices[ticker][0]
                         and df_data["low"].iloc[-1] >= hi_lo_prices[ticker][1]
