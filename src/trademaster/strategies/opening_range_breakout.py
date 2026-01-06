@@ -57,6 +57,7 @@ class OpeningRangeBreakout(AngelOneClient):
         
         capital = self.get_trade_capital()
         print(f'current capital is {capital} Rs')
+        capital = 10000
         if not positions.empty:
             tickers = [
                 i for i in tickers if i + "-EQ" not in positions["tradingsymbol"].to_list()
@@ -109,7 +110,7 @@ class OpeningRangeBreakout(AngelOneClient):
                 #     )
                 ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
                 print(f"Ltp of {ticker} is {ltp}")
-                print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-1]} and previous candle low is {df_data["low"].iloc[-1]}")
+                # print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-1]} and previous candle low is {df_data["low"].iloc[-1]}")
                 if (
                         df_data["close"].iloc[-1] >= hi_lo_prices[ticker][0]
                         and df_data["low"].iloc[-1] >= hi_lo_prices[ticker][1]
