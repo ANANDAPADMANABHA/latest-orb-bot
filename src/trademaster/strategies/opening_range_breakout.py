@@ -86,7 +86,7 @@ class OpeningRangeBreakout(AngelOneClient):
                 df_data.index = pd.to_datetime(df_data.index)
                 df_data.index = df_data.index.tz_localize(None)
                 df_data["avg_vol"] = df_data["volume"].rolling(10).mean().shift(1)
-
+                print(df_data)
                 print(
                 f"[DATA] {ticker} | "
                 f"O:{df_data['open'].iloc[-2]} "
