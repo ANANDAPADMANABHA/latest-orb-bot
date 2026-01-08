@@ -90,12 +90,12 @@ class OpeningRangeBreakout(AngelOneClient):
 
                 print(
                 f"[DATA] {ticker} | "
-                f"O:{df_data['open'].iloc[-1]} "
-                f"H:{df_data['high'].iloc[-1]} "
-                f"L:{df_data['low'].iloc[-1]} "
-                f"C:{df_data['close'].iloc[-1]} "
-                f"CurrentV:{df_data['volume'].iloc[-1]} "
-                f"AvgV:{df_data['avg_vol'].iloc[-1]}"
+                f"O:{df_data['open'].iloc[-2]} "
+                f"H:{df_data['high'].iloc[-2]} "
+                f"L:{df_data['low'].iloc[-2]} "
+                f"C:{df_data['close'].iloc[-2]} "
+                f"CurrentV:{df_data['volume'].iloc[-2]} "
+                f"AvgV:{df_data['avg_vol'].iloc[-2]}"
                 )
                 print(
                 f"[ORB LEVELS] {ticker} | "
@@ -103,17 +103,17 @@ class OpeningRangeBreakout(AngelOneClient):
                 f"Low:{hi_lo_prices[ticker][1]}"
                 )
 
-                # if df_data["volume"].iloc[-1] >= df_data["avg_vol"].iloc[-1]:
+                # if df_data["volume"].iloc[-2] >= df_data["avg_vol"].iloc[-2]:
                 #     print("ALERT..............!")
                 #     print(
                 #         f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
                 #     )
                 ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
                 print(f"Ltp of {ticker} is {ltp}")
-                # print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-1]} and previous candle low is {df_data["low"].iloc[-1]}")
+                # print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-2]} and previous candle low is {df_data["low"].iloc[-2]}")
                 if (
-                        df_data["close"].iloc[-1] >= hi_lo_prices[ticker][0]
-                        and df_data["low"].iloc[-1] >= hi_lo_prices[ticker][1]
+                        df_data["close"].iloc[-2] >= hi_lo_prices[ticker][0]
+                        and df_data["low"].iloc[-2] >= hi_lo_prices[ticker][1]
                     ):
                         
                         sl = round(ltp * 0.99)     # 1% below
@@ -127,8 +127,8 @@ class OpeningRangeBreakout(AngelOneClient):
                                 f"{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}"
                             )
                 elif (
-                        df_data["close"].iloc[-1] <= hi_lo_prices[ticker][1]
-                        and df_data["high"].iloc[-1] <= hi_lo_prices[ticker][0]
+                        df_data["close"].iloc[-2] <= hi_lo_prices[ticker][1]
+                        and df_data["high"].iloc[-2] <= hi_lo_prices[ticker][0]
                     ):
                         sl = round(ltp * 1.01)     # 1% above
                         tgt = round(ltp * 0.98)    # 2% below
