@@ -57,7 +57,6 @@ class OpeningRangeBreakout(AngelOneClient):
         
         capital = self.get_trade_capital()
         print(f'current capital is {capital} Rs')
-        capital = 10000
         if not positions.empty:
             tickers = [
                 i for i in tickers if i + "-EQ" not in positions["tradingsymbol"].to_list()
