@@ -1,5 +1,6 @@
 import datetime as dt
 import time
+import pytz
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -55,6 +56,8 @@ class OpeningRangeBreakout(AngelOneClient):
         Implements an Opening Range Breakout (ORB) strategy for given tickers.
         """
         
+        IST = pytz.timezone("Asia/Kolkata")
+        now_ist = dt.datetime.now(IST)
         capital = self.get_trade_capital()
         print(f'current capital is {capital} Rs')
         if not positions.empty:
@@ -73,8 +76,8 @@ class OpeningRangeBreakout(AngelOneClient):
                 "exchange": exchange,
                 "symboltoken": token_lookup(ticker, self.instrument_list),
                 "interval": "FIVE_MINUTE",
-                "fromdate": (dt.date.today() - dt.timedelta(4)).strftime("%Y-%m-%d %H:%M"),
-                "todate": dt.datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "fromdate": (now_ist - dt.timedelta(days=4)).strftime("%Y-%m-%d %H:%M"),
+                "todate": now_ist.strftime("%Y-%m-%d %H:%M"),
             }
             try:
                 hist_data = self.smart_api.getCandleData(params)
