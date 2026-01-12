@@ -89,7 +89,7 @@ class OpeningRangeBreakout(AngelOneClient):
                 df_data.index = pd.to_datetime(df_data.index)
                 df_data.index = df_data.index.tz_localize(None)
                 df_data["avg_vol"] = df_data["volume"].rolling(10).mean().shift(1)
-                print(df_data)
+                
                 print(
                 f"[DATA] {ticker} | "
                 f"O:{df_data['open'].iloc[-2]} "
@@ -105,43 +105,50 @@ class OpeningRangeBreakout(AngelOneClient):
                 f"Low:{hi_lo_prices[ticker][1]}"
                 )
 
-                # if df_data["volume"].iloc[-2] >= df_data["avg_vol"].iloc[-2]:
-                #     print("ALERT..............!")
-                #     print(
-                #         f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
-                #     )
-                ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
-                print(f"Ltp of {ticker} is {ltp}")
-                # print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-2]} and previous candle low is {df_data["low"].iloc[-2]}")
-                if (
-                        df_data["close"].iloc[-2] >= hi_lo_prices[ticker][0]
-                        and df_data["low"].iloc[-2] >= hi_lo_prices[ticker][1]
-                    ):
-                        
-                        sl = round(ltp * 0.99)     # 1% below
-                        tgt = round(ltp * 1.02)    # 2% above
-                        quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
-                        self.place_bracket_order(
-                            self.instrument_list, ticker, "BUY", quantity, sl, tgt, exchange
-                        )
-               
-                        print(
-                                f"{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}"
-                            )
-                elif (
-                        df_data["close"].iloc[-2] <= hi_lo_prices[ticker][1]
-                        and df_data["high"].iloc[-2] <= hi_lo_prices[ticker][0]
-                    ):
-                        sl = round(ltp * 1.01)     # 1% above
-                        tgt = round(ltp * 0.98)    # 2% below
-                        quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
-                        self.place_bracket_order(
-                            self.instrument_list, ticker, "SELL", quantity, sl, tgt, exchange
-                        )
-                        print(
-                            f"{Colors.RED}Sold {quantity} stocks of {ticker}{Colors.RESET}"
-                        )
+                if df_data["volume"].iloc[-2] >= df_data["avg_vol"].iloc[-2]:
+                    print("ALERT..............!")
+                    print(
+                        f"{Colors.GREEN}{ticker} has broken the average volume,{Colors.RESET}"
+                    )
+                    ltp: Optional[float] = self.get_ltp(self.instrument_list, ticker, exchange)
+                    print(f"Ltp of {ticker} is {ltp}")
+                    # print(f"previous close of ticker: {ticker} is {df_data["close"].iloc[-2]} and previous candle low is {df_data["low"].iloc[-2]}")
+                    if (
+                            df_data["close"].iloc[-2] >= hi_lo_prices[ticker][0]
+                            and df_data["low"].iloc[-2] >= hi_lo_prices[ticker][1]
+                        ):
+                            sl = round(ltp * 0.99)     # 1% below
+                            tgt = round(ltp * 1.02)    # 2% above
+                            quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
+                            if quantity:
+                                self.place_bracket_order(
+                                    self.instrument_list, ticker, "BUY", quantity, sl, tgt, exchange
+                                )
+                            else:
+                                print("No capital balance")
+                
+                            print(
+                                    f"{Colors.GREEN}Bought {quantity} stocks of {ticker}{Colors.RESET}"
+                                )
+                    elif (
+                            df_data["close"].iloc[-2] <= hi_lo_prices[ticker][1]
+                            and df_data["high"].iloc[-2] <= hi_lo_prices[ticker][0]
+                        ):
+                            sl = round(ltp * 1.01)     # 1% above
+                            tgt = round(ltp * 0.98)    # 2% below
+                            quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
+                            if quantity:
+                                self.place_bracket_order(
+                                    self.instrument_list, ticker, "SELL", quantity, sl, tgt, exchange
+                                )
+                                print(
+                                    f"{Colors.RED}Sold {quantity} stocks of {ticker}{Colors.RESET}"
+                                )
+                            else:
+                                print("No capital balance")
+                    else:
+                        print("no breakout ")
                 else:
-                    print(f"{Colors.YELLOW}NO TRADE : {ticker}{Colors.RESET}")
+                    print(f"{Colors.YELLOW}NO TRADE : {ticker}{Colors.RESET} as no volume breakout")
             except Exception as e:
                 print(e)
