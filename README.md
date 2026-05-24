@@ -1,89 +1,130 @@
-# Trade Master: Algorithmic Trading Bot
+# TradeMaster — ORB Bot
 
-Trade Master is an advanced algorithmic trading bot designed to automate the execution of various trading strategies in financial markets.
-Integrated with SmartAPI, Trade Master accesses real-time market data from Angel One broker, allowing users to execute trades seamlessly.
-With support for customizable trading strategies, real-time monitoring, risk management features, and platform compatibility,
-Trade Master empowers traders to optimize their trading strategies, manage risks effectively, and capitalize on market opportunities with confidence
+An intraday algorithmic trading system for the Indian equity market (NSE) using an **Opening Range Breakout (ORB)** strategy with **Angel One SmartAPI**.
 
-## Features
+The project is structured as a **Django REST API backend** + **React frontend**.
 
-- **SmartAPI Integration**: Seamlessly integrates with SmartAPI to access real-time market data and execute trades on Angel One broker.
-- **Multiple Trading Strategies**: Trade Master supports various trading strategies, including:
-  - Opening Range Breakout Strategy
-  - Yesterday High Breakout Strategy
-  - Lot more in progress
+---
 
-## Getting Started
+## Project Structure
 
-### Prerequisites
-
-Before running Trade Master, ensure you have the following prerequisites installed:
-
-- Python 3.6
-
-### Installation
-
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/ANANDAPADMANABHA/Trade-master.git
-   ```
-
-2. Navigate to the project directory:
-
-   ```bash
-   cd Trade-Master
-   ```
-
-3. Install dependencies:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Configuration
-
-1. Obtain API keys from Angel One broker.
-2. Go to `config.py` and update the configuration settings with your API keys.
-
-   ```python
-   API_KEY = '{{API_KEY}}'
-   CLIENT_ID = '{{CLIENT_ID}}'
-   PASSWORD = '{{PASSWORD}}'
-   TOKEN = '{{TOKEN}}'
-   ```
-
-### Usage
-
-Run the main script to start Trade Master:
-
-```bash
-python trade_master.py
+```
+latest-orb-bot/
+├── backend/               ← Django backend
+│   ├── manage.py
+│   ├── requirements.txt
+│   ├── .env.example       ← copy to .env and fill in secrets
+│   ├── trademaster_project/   ← Django settings, urls, celery
+│   ├── api/               ← REST API (models, views, serializers, tasks)
+│   └── trading/           ← Core trading logic (broker, strategy, utils)
+│       └── strategies/
+│           └── opening_range_breakout.py
+└── frontend/              ← React + Vite frontend
+    └── src/
+        ├── pages/         ← Dashboard, Watchlist, Positions, P&L, Sessions
+        ├── components/    ← Navbar, BotControl, StatCard
+        └── api/           ← axios client
 ```
 
-## Contributing
+---
 
-Contributions are welcome! If you'd like to contribute to Trade Master, please follow these steps:
+## API Endpoints
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature/new-feature`).
-3. Make your changes.
-4. Commit your changes (`git commit -am 'Add new feature'`).
-5. Push to the branch (`git push origin feature/new-feature`).
-6. Create a new Pull Request.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/watchlist/` | List active watchlist tickers |
+| POST | `/api/watchlist/` | Add a ticker |
+| DELETE | `/api/watchlist/<id>/` | Remove a ticker |
+| GET | `/api/bot/status/` | Bot running status |
+| POST | `/api/bot/start/` | Start bot manually |
+| POST | `/api/bot/stop/` | Stop running bot |
+| GET | `/api/positions/` | Live positions from Angel One |
+| GET | `/api/orders/` | Live order book |
+| GET | `/api/capital/` | Available trading capital |
+| GET | `/api/pnl/` | Full P&L history (optional `?date=YYYY-MM-DD`) |
+| GET | `/api/pnl/today/` | Today's trades + total P&L |
+| GET | `/api/pnl/summary/` | Daily aggregate P&L (for chart) |
+| GET | `/api/sessions/` | Past bot sessions |
 
-## License
+---
 
-[Choose a license for your project and mention it here]
+## Setup
 
-## Acknowledgements
+### 1. Backend
 
-We would like to thank the following individuals and organizations for their contributions, support, and inspiration:
+```bash
+cd backend
 
-- **Open-source Libraries**: We are grateful to the developers of [Library Name] for providing [description of how it helped].
-- **API Providers**: We would like to acknowledge SmartAPI for providing the API used in this project.
-- **Online Resources**: The tutorials and documentation from Angelone were instrumental in helping us understand api integration .
+# Create and activate virtual environment (recommended)
+python -m venv venv
+venv\Scripts\activate      # Windows
+# source venv/bin/activate  # macOS/Linux
 
-## Contact
+# Install dependencies
+pip install -r requirements.txt
 
-For any inquiries or support, please contact ananthapadmanabhan012@gmail.com
+# Configure environment variables
+copy .env.example .env
+# Edit .env with your Angel One credentials and Google Sheets creds
+
+# Apply migrations
+python manage.py migrate
+
+# Create a superuser (optional, for /admin)
+python manage.py createsuperuser
+
+# Start development server
+python manage.py runserver
+```
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs at http://localhost:5173 and proxies `/api` calls to the Django server at `http://localhost:8000`.
+
+### 3. Celery (background task scheduler)
+
+Make sure Redis is running, then in separate terminals:
+
+```bash
+# Worker
+cd backend
+celery -A trademaster_project worker --loglevel=info
+
+# Beat scheduler (triggers bot at 9:20 AM weekdays)
+celery -A trademaster_project beat --loglevel=info
+```
+
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DJANGO_SECRET_KEY` | Django secret key |
+| `DEBUG` | `True` for dev, `False` for prod |
+| `API_KEY` | Angel One SmartAPI key (from My Apps) |
+| `SMARTAPI_SECRET_KEY` | Secret key shown when creating the app (store for reference) |
+| `PRIMARY_STATIC_IP` | Public IPv4 registered on your SmartAPI app |
+| `CLIENT_ID` | Angel One client ID |
+| `PASSWORD` | Angel One login password |
+| `TOKEN` | TOTP secret (from Angel One) |
+| `GOOGLE_CREDS_JSON` | Google service account JSON (single line) |
+| `REDIS_URL` | Redis URL (default: `redis://localhost:6379/0`) |
+
+---
+
+## How the Bot Works
+
+1. Celery Beat triggers `run_trade_task` every weekday at **9:20 AM IST**
+2. Bot authenticates to Angel One via TOTP
+3. Tickers are loaded from the **Watchlist** (stored in the database)
+4. For each ticker, the opening range is computed from 5-minute candles up to 9:19 AM
+5. Every 5 minutes until 3:30 PM, the bot checks for breakouts with a **volume filter**
+6. On signal, a **bracket order** is placed (entry + stop-loss + target)
+7. At session end, P&L is saved to the database and displayed in the UI

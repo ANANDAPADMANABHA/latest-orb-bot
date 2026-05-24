@@ -1,0 +1,25 @@
+.pnl-page { display: flex; flex-direction: column; gap: 1.25rem; }
+.chart-card { padding-bottom: 0.5rem; }
+
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.pnl-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pnl-total { font-weight: 600; font-size: 0.9rem; }
+.muted { color: var(--text-muted); font-size: 0.82rem; }
+.empty-state { color: var(--text-muted); font-size: 0.88rem; padding: 1rem 0; }

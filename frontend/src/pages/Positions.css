@@ -1,0 +1,36 @@
+.positions-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.positions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.pnl-total { font-size: 0.95rem; font-weight: 700; }
+.muted { color: var(--text-muted); font-size: 0.82rem; }
+.loading { color: var(--text-muted); font-size: 0.88rem; padding: 1rem 0; }
+.empty-state { color: var(--text-muted); font-size: 0.88rem; padding: 1rem 0; }
+
+.alert-error {
+  background: rgba(239,68,68,0.1);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
