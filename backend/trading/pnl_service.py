@@ -77,8 +77,6 @@ def sync_pnl_records(client, replace_today: bool = True) -> Tuple[List[dict], in
     Pull today's P&L from broker positions and save to PnLRecord.
     Returns (trade dicts, number of records written).
     """
-    from trading.utils import log_trade_to_sheet
-
     rows = parse_position_rows(client.get_positions())
     today = dt.date.today()
 
@@ -95,10 +93,5 @@ def sync_pnl_records(client, replace_today: bool = True) -> Tuple[List[dict], in
             quantity=t['quantity'],
             pnl=t['pnl'],
         )
-
-    try:
-        log_trade_to_sheet('trade-master', 'PnL', rows)
-    except Exception as exc:
-        print(f'Google Sheet P&L log skipped: {exc}')
 
     return rows, len(rows)

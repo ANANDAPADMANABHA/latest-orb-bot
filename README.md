@@ -83,7 +83,7 @@ pip install -r requirements.txt
 
 # Configure environment variables
 copy .env.example .env
-# Edit .env with your Angel One credentials and Google Sheets creds
+# Edit .env with your Angel One credentials
 
 # Apply migrations
 python manage.py migrate
@@ -127,6 +127,15 @@ celery -A trademaster_project beat --loglevel=info
 
 If you see `Error 10061 connecting to localhost:6379`, Redis is not running — use Option A or start Redis with `docker compose up -d`.
 
+**If API returns 500 with `cannot schedule new futures after interpreter shutdown`:**  
+The dev server crashed (usually after saving code and autoreload). Press `Ctrl+C` in the backend terminal and start again:
+
+```bash
+python manage.py runserver
+```
+
+This is a local dev-only issue; production on the VPS does not use `runserver`.
+
 ---
 
 ## Environment Variables
@@ -141,7 +150,6 @@ If you see `Error 10061 connecting to localhost:6379`, Redis is not running — 
 | `CLIENT_ID` | Angel One client ID |
 | `PASSWORD` | Angel One login password |
 | `TOKEN` | TOTP secret (from Angel One) |
-| `GOOGLE_CREDS_JSON` | Google service account JSON (single line) |
 | `REDIS_URL` | Redis URL (default: `redis://localhost:6379/0`) |
 
 ---

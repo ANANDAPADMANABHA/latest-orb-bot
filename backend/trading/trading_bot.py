@@ -5,9 +5,6 @@ import pandas as pd
 
 from trading.broker import orb_high_low_from_df
 from trading.strategies.opening_range_breakout import OpeningRangeBreakout
-from trading.utils import get_stock_tickers
-
-
 def _should_stop_bot() -> bool:
     try:
         from api.tasks import is_bot_stop_requested
@@ -25,8 +22,11 @@ class TradeMaster(OpeningRangeBreakout):
         self._load_instrument_list()
         self._initialize_smart_api()
 
-        # Use provided tickers, or fall back to Google Sheets
-        ORB_TICKERS = tickers if tickers else get_stock_tickers(sheet_name='trade-master')
+        ORB_TICKERS = list(tickers) if tickers else []
+        if not ORB_TICKERS:
+            raise ValueError(
+                'Watchlist is empty. Add symbols on the Watchlist page before starting the bot.'
+            )
         data_0920 = self.hist_data_0920(ORB_TICKERS, 4, 'FIVE_MINUTE', self.instrument_list)
 
         hi_lo_prices = {}

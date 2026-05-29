@@ -10,7 +10,7 @@ import pytz
 from pyotp import TOTP
 from SmartApi import SmartConnect
 
-from trading.utils import token_lookup, calculate_quantity, log_trade_to_sheet
+from trading.utils import token_lookup, calculate_quantity
 
 IST = pytz.timezone('Asia/Calcutta')
 
@@ -313,11 +313,6 @@ class AngelOneClient:
         if not trades:
             print('No trades today')
             return []
-        try:
-            from trading.utils import log_trade_to_sheet
-            log_trade_to_sheet('trade-master', 'PnL', trades)
-        except Exception as exc:
-            print(f'Google Sheet P&L log skipped: {exc}')
         return trades
 
     def hist_data_0920(

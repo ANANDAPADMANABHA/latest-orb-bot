@@ -1,11 +1,6 @@
 from typing import Dict, List, Optional, Union
+
 import pandas as pd
-import os
-from datetime import datetime
-import json
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from gspread_formatting import CellFormat, Color, format_cell_ranges
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -34,18 +29,6 @@ class Colors:
     MAGENTA = '\033[95m'
     CYAN = '\033[96m'
     RESET = '\033[0m'
-
-
-def get_stock_tickers(sheet_name: str, worksheet_name: str = 'Sheet1') -> list:
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials_json = os.environ.get("GOOGLE_CREDS_JSON")
-    credentials_dict = json.loads(credentials_json)
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
-    client = gspread.authorize(credentials)
-    sheet = client.open(sheet_name).worksheet(worksheet_name)
-    tickers = sheet.col_values(1)
-    tickers = [t.strip().upper() for t in tickers if t.strip()]
-    return tickers
 
 
 def calculate_quantity(
@@ -80,30 +63,3 @@ def calculate_quantity(
             f'({max_capital_usage_percent}% of Rs {capital})'
         )
     return quantity
-
-
-def log_trade_to_sheet(sheet_name: str, worksheet_name: str, trades: list):
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    credentials_json = os.environ.get("GOOGLE_CREDS_JSON")
-    credentials_dict = json.loads(credentials_json)
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(credentials_dict, scope)
-    client = gspread.authorize(credentials)
-    sheet = client.open(sheet_name).worksheet(worksheet_name)
-
-    for trade in trades:
-        sheet.append_row([trade['date'], trade['symbol'], trade['quantity'], trade['pnl']])
-        last_row = len(sheet.get_all_values())
-        pnl_value = float(trade['pnl'])
-        if pnl_value >= 0:
-            fmt = CellFormat(
-                backgroundColor=Color(0.85, 1, 0.85),
-                textFormat={"foregroundColor": {"red": 0, "green": 0.5, "blue": 0}}
-            )
-        else:
-            fmt = CellFormat(
-                backgroundColor=Color(1, 0.85, 0.85),
-                textFormat={"foregroundColor": {"red": 0.7, "green": 0, "blue": 0}}
-            )
-        format_cell_ranges(sheet, [("D{}".format(last_row), fmt)])
-
-    print('log added for today in sheet')
