@@ -1,5 +1,7 @@
 from django.urls import path
 from . import views
+from . import broker_views
+from . import chart_views
 
 urlpatterns = [
     # Watchlist
@@ -10,8 +12,14 @@ urlpatterns = [
     path('bot/status/', views.bot_status, name='bot-status'),
     path('bot/start/', views.bot_start, name='bot-start'),
     path('bot/stop/', views.bot_stop, name='bot-stop'),
+    path('bot/settings/', views.bot_settings, name='bot-settings'),
 
-    # Live market data
+    # Charts + dashboard ORB snapshot (watchlist intraday / ORB levels)
+    path('charts/watchlist/', chart_views.charts_watchlist, name='charts-watchlist'),
+    path('orb/watchlist/', chart_views.orb_watchlist, name='orb-watchlist'),
+
+    # Live market data (broker_live = one login for positions + orders)
+    path('broker/live/', broker_views.broker_live, name='broker-live'),
     path('positions/', views.positions, name='positions'),
     path('orders/', views.orders, name='orders'),
     path('capital/', views.capital, name='capital'),

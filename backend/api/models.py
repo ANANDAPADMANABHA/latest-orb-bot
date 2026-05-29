@@ -53,6 +53,68 @@ class Trade(models.Model):
         ordering = ['-executed_at']
 
 
+class BotSettings(models.Model):
+    STRATEGY_FIXED = 'fixed_percent'
+    STRATEGY_PREV_CANDLE = 'prev_candle'
+    STRATEGY_TRAILING = 'trailing_candle'
+    STRATEGY_CHOICES = [
+        (STRATEGY_FIXED, 'Fixed percent'),
+        (STRATEGY_PREV_CANDLE, 'Previous 5m candle'),
+        (STRATEGY_TRAILING, 'Trailing stop'),
+    ]
+
+    stop_loss_strategy = models.CharField(
+        max_length=20,
+        choices=STRATEGY_CHOICES,
+        default=STRATEGY_FIXED,
+    )
+    risk_percent = models.PositiveSmallIntegerField(default=1)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get_singleton(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return f"Bot settings — {self.stop_loss_strategy}"
+
+    class Meta:
+        verbose_name_plural = 'Bot settings'
+
+
+class ManagedPosition(models.Model):
+    STAGE_INITIAL = 'initial'
+    STAGE_BREAKEVEN = 'breakeven'
+    STAGE_TRAILING = 'trailing'
+    STAGE_CHOICES = [
+        (STAGE_INITIAL, 'Initial'),
+        (STAGE_BREAKEVEN, 'Breakeven'),
+        (STAGE_TRAILING, 'Trailing'),
+    ]
+
+    symbol = models.CharField(max_length=20)
+    side = models.CharField(max_length=4)
+    quantity = models.IntegerField()
+    entry_price = models.FloatField()
+    initial_sl = models.FloatField()
+    current_sl = models.FloatField()
+    sl_order_id = models.CharField(max_length=50)
+    target_order_id = models.CharField(max_length=50, blank=True)
+    trail_stage = models.CharField(max_length=20, choices=STAGE_CHOICES, default=STAGE_INITIAL)
+    is_active = models.BooleanField(default=True)
+    session = models.ForeignKey(
+        BotSession, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_positions'
+    )
+    opened_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.side} {self.symbol} SL={self.current_sl} ({self.trail_stage})"
+
+    class Meta:
+        ordering = ['-opened_at']
+
+
 class PnLRecord(models.Model):
     date = models.DateField()
     symbol = models.CharField(max_length=20)

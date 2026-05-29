@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getPositions, getOrders } from '../api/client';
+import { getBrokerLive } from '../api/client';
 import './Positions.css';
 
 export default function Positions() {
@@ -13,11 +13,14 @@ export default function Positions() {
     setPosLoading(true);
     setOrdLoading(true);
     try {
-      const [p, o] = await Promise.all([getPositions(), getOrders()]);
-      setPositions(p.data || []);
-      setOrders(o.data || []);
+      const { data } = await getBrokerLive();
+      setPositions(data.positions || []);
+      setOrders(data.orders || []);
     } catch (e) {
-      setError(e.response?.data?.error || 'Could not connect to Angel One. Check your credentials.');
+      setError(
+        e.response?.data?.error ||
+          'Could not connect to Angel One. Wait 10–15 min if rate limited, then refresh once.'
+      );
     } finally {
       setPosLoading(false);
       setOrdLoading(false);

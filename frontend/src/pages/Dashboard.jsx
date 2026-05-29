@@ -1,22 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import StatCard from '../components/StatCard';
 import BotControl from '../components/BotControl';
-import { getCapital, getPnLToday, getPnLSummary } from '../api/client';
+import OrbRangeGauge from '../components/OrbRangeGauge';
+import { getCapital, getPnLToday, getPnLSummary, getOrbWatchlist } from '../api/client';
 import './Dashboard.css';
 
 export default function Dashboard() {
   const [capital, setCapital] = useState(null);
   const [today, setToday] = useState(null);
   const [summary, setSummary] = useState([]);
+  const [orbSymbols, setOrbSymbols] = useState([]);
+  const [orbUpdatedAt, setOrbUpdatedAt] = useState(null);
+  const [orbLoading, setOrbLoading] = useState(false);
+  const [orbError, setOrbError] = useState('');
 
-  useEffect(() => {
+  const loadOrb = useCallback(async (forceRefresh = true) => {
+    setOrbLoading(true);
+    setOrbError('');
+    try {
+      const { data } = await getOrbWatchlist(forceRefresh);
+      setOrbSymbols(data.symbols || []);
+      setOrbUpdatedAt(data.updated_at || null);
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message || 'Failed to load ORB data';
+      setOrbError(msg);
+    } finally {
+      setOrbLoading(false);
+    }
+  }, []);
+
+  const loadDashboard = useCallback(async () => {
     getCapital().then(r => setCapital(r.data.capital)).catch(() => {});
     getPnLToday().then(r => setToday(r.data)).catch(() => {});
     getPnLSummary().then(r => setSummary(r.data)).catch(() => {});
-  }, []);
+    await loadOrb(true);
+  }, [loadOrb]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
 
   const totalPnl = summary.reduce((s, d) => s + d.total_pnl, 0);
   const winDays = summary.filter(d => d.total_pnl > 0).length;
@@ -26,9 +51,23 @@ export default function Dashboard() {
     pnl: parseFloat(d.total_pnl.toFixed(2)),
   }));
 
+  const orbUpdatedLabel = orbUpdatedAt
+    ? new Date(orbUpdatedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+    : null;
+
   return (
     <div className="dashboard">
-      <h1 className="page-title">Dashboard</h1>
+      <div className="dashboard-top-row">
+        <h1 className="page-title">Dashboard</h1>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={loadDashboard}
+          disabled={orbLoading}
+        >
+          {orbLoading ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
 
       <div className="stats-grid">
         <StatCard
@@ -56,6 +95,46 @@ export default function Dashboard() {
       </div>
 
       <BotControl />
+
+      <div className="card orb-section">
+        <div className="orb-section-header">
+          <div>
+            <div className="section-title">Opening range vs price</div>
+            <p className="orb-section-sub">
+              One card per watchlist symbol the bot scans. Green = ORB high, red = ORB low,
+              blue dot = latest price between them.
+            </p>
+          </div>
+        </div>
+
+        {orbError && <div className="orb-section-error">{orbError}</div>}
+        {orbUpdatedLabel && !orbError && (
+          <p className="orb-section-updated">Updated: {orbUpdatedLabel}</p>
+        )}
+
+        {orbLoading && orbSymbols.length === 0 && !orbError && (
+          <div className="empty-state">Loading ORB snapshot…</div>
+        )}
+
+        {!orbLoading && orbSymbols.length === 0 && !orbError && (
+          <div className="empty-state">No watchlist symbols. Add tickers on the Watchlist page.</div>
+        )}
+
+        {orbSymbols.length > 0 && (
+          <div className="orb-gauge-grid">
+            {orbSymbols.map((s) => (
+              <OrbRangeGauge
+                key={s.symbol}
+                symbol={s.symbol}
+                orbHigh={s.orb_high}
+                orbLow={s.orb_low}
+                lastClose={s.last_close}
+                error={s.error}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="card chart-card">
         <div className="section-title">Daily P&L History</div>

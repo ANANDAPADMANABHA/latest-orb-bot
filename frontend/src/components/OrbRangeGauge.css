@@ -1,0 +1,128 @@
+.orb-gauge {
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 140px;
+}
+
+.orb-gauge-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.orb-gauge-symbol {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.orb-gauge-now {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.orb-gauge-empty {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.orb-gauge-visual {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+
+.orb-gauge-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 72px;
+  font-size: 0.7rem;
+}
+
+.orb-label-high {
+  color: var(--green);
+  font-weight: 600;
+}
+
+.orb-label-low {
+  color: var(--red);
+  font-weight: 600;
+}
+
+.orb-gauge-track {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 72px;
+}
+
+.orb-gauge-line {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  background: linear-gradient(90deg, var(--red), var(--green));
+  border-radius: 2px;
+}
+
+.orb-dot {
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.orb-dot-end {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.orb-dot-high {
+  background: var(--green);
+}
+
+.orb-dot-low {
+  background: var(--red);
+}
+
+.orb-dot-price {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 2px var(--accent);
+  z-index: 1;
+}
+
+.orb-gauge-legend {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.legend-now {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.legend-now.breakout-up {
+  color: var(--green);
+}
+
+.legend-now.breakout-down {
+  color: var(--red);
+}

@@ -3,13 +3,33 @@ import json
 import os
 import time
 import urllib
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
+import pytz
 from pyotp import TOTP
 from SmartApi import SmartConnect
 
 from trading.utils import token_lookup, calculate_quantity, log_trade_to_sheet
+
+IST = pytz.timezone('Asia/Calcutta')
+
+
+def orb_high_low_from_df(df: Optional[pd.DataFrame]) -> Optional[Tuple[float, float]]:
+    if df is None or df.empty:
+        return None
+    return float(df['high'].iloc[-1]), float(df['low'].iloc[-1])
+
+
+def orb_levels_from_intraday_df(df: Optional[pd.DataFrame]) -> Optional[Tuple[float, float]]:
+    """Last 5m bar on or before 09:19 IST today (matches hist_data_0920 todate)."""
+    if df is None or df.empty:
+        return None
+    today = dt.datetime.now(IST).date()
+    cutoff = dt.datetime.combine(today, dt.time(9, 19))
+    index_dates = pd.to_datetime(df.index).date
+    pre = df[(index_dates == today) & (df.index <= cutoff)]
+    return orb_high_low_from_df(pre if not pre.empty else None)
 
 
 class AngelOneClient:
@@ -127,6 +147,20 @@ class AngelOneClient:
             print(f"Market order failed: {e}")
             return None
 
+    def _extract_order_id(self, response) -> Optional[str]:
+        if not response:
+            return None
+        if isinstance(response, dict):
+            data = response.get('data') or {}
+            if isinstance(data, dict):
+                oid = data.get('orderid') or data.get('orderId')
+                if oid:
+                    return str(oid)
+            oid = response.get('orderid') or response.get('orderId')
+            if oid:
+                return str(oid)
+        return None
+
     def place_bracket_order(
         self,
         instrument_list,
@@ -136,12 +170,13 @@ class AngelOneClient:
         stoploss_price: float,
         target_price: float,
         exchange: str = "NSE",
-    ) -> None:
+    ) -> Optional[Dict[str, Optional[str]]]:
         entry = self.place_market_order(instrument_list, ticker, buy_sell, quantity, exchange)
         if not entry:
             print("Entry order failed, aborting bracket order")
-            return
+            return None
 
+        entry_order_id = str(entry) if entry else None
         opposite = "SELL" if buy_sell == "BUY" else "BUY"
         sl_order = {
             "variety": "STOPLOSS",
@@ -155,7 +190,8 @@ class AngelOneClient:
             "triggerprice": stoploss_price,
             "quantity": quantity,
         }
-        self.smart_api.placeOrderFullResponse(sl_order)
+        sl_response = self.smart_api.placeOrderFullResponse(sl_order)
+        sl_order_id = self._extract_order_id(sl_response)
 
         target_order = {
             "variety": "NORMAL",
@@ -169,7 +205,94 @@ class AngelOneClient:
             "price": target_price,
             "quantity": quantity,
         }
-        self.smart_api.placeOrderFullResponse(target_order)
+        target_response = self.smart_api.placeOrderFullResponse(target_order)
+        target_order_id = self._extract_order_id(target_response)
+
+        return {
+            'entry_order_id': entry_order_id,
+            'sl_order_id': sl_order_id,
+            'target_order_id': target_order_id,
+        }
+
+    def modify_stop_loss_order(
+        self,
+        order_id: str,
+        instrument_list,
+        ticker: str,
+        position_side: str,
+        quantity: int,
+        new_trigger: float,
+        exchange: str = "NSE",
+    ) -> Optional[str]:
+        """
+        Modify an open STOPLOSS order trigger price.
+        Returns order id (unchanged or replaced) on success, None on failure.
+        """
+        opposite = "SELL" if position_side == "BUY" else "BUY"
+        params = {
+            "variety": "STOPLOSS",
+            "orderid": order_id,
+            "ordertype": "STOPLOSS_MARKET",
+            "tradingsymbol": f"{ticker}-EQ",
+            "symboltoken": token_lookup(ticker, instrument_list),
+            "transactiontype": opposite,
+            "exchange": exchange,
+            "producttype": "INTRADAY",
+            "duration": "DAY",
+            "triggerprice": new_trigger,
+            "quantity": quantity,
+            "price": "0",
+        }
+        try:
+            response = self.smart_api.modifyOrder(params)
+            if isinstance(response, dict) and response.get('status') is True:
+                return order_id
+            print(f"modifyOrder failed for {ticker}: {response}")
+        except Exception as e:
+            print(f"modifyOrder exception for {ticker}: {e}")
+
+        return self._replace_stop_loss_order(
+            order_id, instrument_list, ticker, position_side, quantity, new_trigger, exchange
+        )
+
+    def _replace_stop_loss_order(
+        self,
+        order_id: str,
+        instrument_list,
+        ticker: str,
+        position_side: str,
+        quantity: int,
+        new_trigger: float,
+        exchange: str = "NSE",
+    ) -> Optional[str]:
+        try:
+            self.smart_api.cancelOrder(order_id, "STOPLOSS")
+        except Exception as e:
+            print(f"cancelOrder failed for {ticker}: {e}")
+            return None
+
+        opposite = "SELL" if position_side == "BUY" else "BUY"
+        sl_order = {
+            "variety": "STOPLOSS",
+            "tradingsymbol": f"{ticker}-EQ",
+            "symboltoken": token_lookup(ticker, instrument_list),
+            "transactiontype": opposite,
+            "exchange": exchange,
+            "ordertype": "STOPLOSS_MARKET",
+            "producttype": "INTRADAY",
+            "duration": "DAY",
+            "triggerprice": new_trigger,
+            "quantity": quantity,
+        }
+        try:
+            response = self.smart_api.placeOrderFullResponse(sl_order)
+            new_id = self._extract_order_id(response)
+            if new_id:
+                return new_id
+            print(f"replace SL order failed for {ticker}: {response}")
+        except Exception as e:
+            print(f"replace SL order exception for {ticker}: {e}")
+        return None
 
     def get_open_orders(self) -> Optional[pd.DataFrame]:
         try:
@@ -242,6 +365,125 @@ class AngelOneClient:
                     print(f"Error fetching {ticker} (attempt {attempt}/{retries}): {e}")
                 time.sleep(delay * attempt)
         return hist_data_tickers
+
+    def _fetch_intraday_candle_df(
+        self,
+        ticker: str,
+        instrument_list: List[Dict[str, Union[str, int]]],
+        interval: str = 'FIVE_MINUTE',
+        exchange: str = 'NSE',
+        retries: int = 3,
+        delay: float = 10.0,
+        rate_limit_pause: bool = True,
+    ) -> Optional[pd.DataFrame]:
+        token = token_lookup(ticker, instrument_list)
+        if not token:
+            return None
+
+        now = dt.datetime.now(IST)
+        market_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
+        params = {
+            'exchange': exchange,
+            'symboltoken': token,
+            'interval': interval,
+            'fromdate': market_open.strftime('%Y-%m-%d %H:%M'),
+            'todate': now.strftime('%Y-%m-%d %H:%M'),
+        }
+        for attempt in range(1, retries + 1):
+            try:
+                if rate_limit_pause:
+                    time.sleep(0.4)
+                hist_data = self.smart_api.getCandleData(params)
+                if hist_data and hist_data.get('status') and hist_data.get('data'):
+                    df_data = pd.DataFrame(
+                        hist_data['data'],
+                        columns=['date', 'open', 'high', 'low', 'close', 'volume'],
+                    )
+                    df_data.set_index('date', inplace=True)
+                    df_data.index = pd.to_datetime(df_data.index)
+                    df_data.index = df_data.index.tz_localize(None)
+                    return df_data
+            except Exception as e:
+                print(
+                    f'Error fetching intraday {ticker} '
+                    f'(attempt {attempt}/{retries}): {e}'
+                )
+            time.sleep(delay * attempt)
+        return None
+
+    def get_intraday_candles(
+        self,
+        ticker: str,
+        instrument_list: List[Dict[str, Union[str, int]]],
+        interval: str = 'FIVE_MINUTE',
+        exchange: str = 'NSE',
+        retries: int = 3,
+        delay: float = 10.0,
+    ) -> Optional[pd.DataFrame]:
+        return self._fetch_intraday_candle_df(
+            ticker,
+            instrument_list,
+            interval=interval,
+            exchange=exchange,
+            retries=retries,
+            delay=delay,
+            rate_limit_pause=True,
+        )
+
+    def get_chart_data(
+        self,
+        ticker: str,
+        instrument_list: List[Dict[str, Union[str, int]]],
+        interval: str = 'FIVE_MINUTE',
+        exchange: str = 'NSE',
+        retries: int = 2,
+        delay: float = 1.0,
+    ) -> Optional[Tuple[pd.DataFrame, Optional[float], Optional[float]]]:
+        df = self._fetch_intraday_candle_df(
+            ticker,
+            instrument_list,
+            interval=interval,
+            exchange=exchange,
+            retries=retries,
+            delay=delay,
+            rate_limit_pause=False,
+        )
+        if df is None or df.empty:
+            return None
+        levels = orb_levels_from_intraday_df(df)
+        if levels:
+            return df, levels[0], levels[1]
+        return df, None, None
+
+    def ensure_feed_token(self) -> None:
+        """Refresh feed token via refresh token when WebSocket auth may be stale."""
+        self._initialize_smart_api()
+        if self.smart_api.feed_token:
+            return
+        refresh = getattr(self.smart_api, 'refresh_token', None) or ''
+        if not refresh:
+            raise RuntimeError('Angel One feed token missing; re-login required.')
+        self.smart_api.generateToken(refresh)
+        if not self.smart_api.feed_token:
+            raise RuntimeError('Angel One feed token refresh failed.')
+
+    def get_websocket_credentials(self) -> Dict[str, str]:
+        """JWT, feed token, and client code for SmartAPI WebSocket v2."""
+        self._initialize_smart_api()
+        self.ensure_feed_token()
+        jwt = self.smart_api.access_token or ''
+        if jwt and not jwt.startswith('Bearer '):
+            jwt = f'Bearer {jwt}'
+        client_code = getattr(self.smart_api, 'userId', None) or self.client_id
+        feed_token = self.smart_api.feed_token or ''
+        if not feed_token:
+            raise RuntimeError('Angel One feed token missing; re-login required.')
+        return {
+            'auth_token': jwt,
+            'api_key': self.api_key,
+            'client_code': str(client_code),
+            'feed_token': str(feed_token),
+        }
 
     def get_positions(self) -> List[Dict]:
         try:

@@ -1,0 +1,60 @@
+.stock-chart-card {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 280px;
+}
+
+.stock-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.stock-chart-symbol {
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.stock-chart-ltp {
+  font-size: 0.95rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.stock-chart-ltp-live {
+  color: var(--green);
+}
+
+.stock-chart-orb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stock-chart-orb .orb-high { color: var(--green); }
+.stock-chart-orb .orb-low { color: var(--red); }
+
+.stock-chart-empty,
+.stock-chart-warn {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 2rem 0.5rem;
+}
+
+.stock-chart-warn {
+  color: var(--yellow);
+  padding: 0.25rem 0;
+  text-align: left;
+}
+
+.stock-chart-container {
+  width: 100%;
+  position: relative;
+}

@@ -28,7 +28,25 @@ latest-orb-bot/
 
 ---
 
-## API Endpoints
+## Production deployment (VPS)
+
+See **[deploy/DEPLOY.md](deploy/DEPLOY.md)** for full instructions to host on a single Ubuntu VPS with Nginx, Gunicorn, Celery, and Let's Encrypt HTTPS.
+
+Quick summary:
+
+```bash
+sudo bash deploy/setup-server.sh          # one-time server bootstrap
+git clone <repo> /var/www/trademaster
+cp backend/.env.production.example backend/.env && nano backend/.env
+sudo bash deploy/deploy.sh
+sudo bash deploy/install-services.sh
+sudo bash deploy/ssl.sh yourdomain.com
+sudo bash deploy/verify.sh https://yourdomain.com
+```
+
+**Important:** Your VPS public IP must match the **Primary Static IP** registered on your Angel One SmartAPI app.
+
+---
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -87,18 +105,27 @@ npm run dev
 
 Frontend runs at http://localhost:5173 and proxies `/api` calls to the Django server at `http://localhost:8000`.
 
-### 3. Celery (background task scheduler)
+### 3. Start Bot (Celery + Redis)
 
-Make sure Redis is running, then in separate terminals:
+**Option A — No Redis (easiest for local Windows):**  
+Click **Start Bot** in the dashboard. If Redis is not running, the backend starts the bot in a **background thread** automatically.
+
+**Option B — With Redis + Celery (recommended for production-like setup):**
 
 ```bash
-# Worker
-cd backend
-celery -A trademaster_project worker --loglevel=info
+# Start Redis (from project root)
+docker compose up -d
 
-# Beat scheduler (triggers bot at 9:20 AM weekdays)
+# Worker (new terminal)
+cd backend
+venv\Scripts\activate
+celery -A trademaster_project worker --loglevel=info --pool=solo
+
+# Beat scheduler — optional, auto-starts bot at 9:20 AM weekdays (new terminal)
 celery -A trademaster_project beat --loglevel=info
 ```
+
+If you see `Error 10061 connecting to localhost:6379`, Redis is not running — use Option A or start Redis with `docker compose up -d`.
 
 ---
 

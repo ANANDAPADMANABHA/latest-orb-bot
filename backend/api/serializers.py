@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import WatchlistTicker, BotSession, Trade, PnLRecord
+from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings
 
 
 class WatchlistTickerSerializer(serializers.ModelSerializer):
@@ -30,3 +30,15 @@ class PnLRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = PnLRecord
         fields = ['id', 'date', 'symbol', 'quantity', 'pnl', 'created_at']
+
+
+class BotSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BotSettings
+        fields = ['stop_loss_strategy', 'risk_percent', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def validate_risk_percent(self, value):
+        if value < 1 or value > 10:
+            raise serializers.ValidationError('Risk percent must be between 1 and 10.')
+        return value

@@ -1,17 +1,19 @@
 import datetime as dt
 import os
+import threading
 
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import WatchlistTicker, BotSession, Trade, PnLRecord
+from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings
 from .serializers import (
     WatchlistTickerSerializer,
     BotSessionSerializer,
     TradeSerializer,
     PnLRecordSerializer,
+    BotSettingsSerializer,
 )
 
 
@@ -46,10 +48,37 @@ def watchlist_detail(request, pk):
 def bot_status(request):
     running = BotSession.objects.filter(status='running').order_by('-started_at').first()
     last = BotSession.objects.order_by('-started_at').first()
+    settings = BotSettings.get_singleton()
     return Response({
         'is_running': running is not None,
         'session': BotSessionSerializer(running or last).data if (running or last) else None,
+        'settings': BotSettingsSerializer(settings).data,
     })
+
+
+@api_view(['GET', 'PATCH'])
+def bot_settings(request):
+    settings = BotSettings.get_singleton()
+    if request.method == 'GET':
+        return Response(BotSettingsSerializer(settings).data)
+
+    serializer = BotSettingsSerializer(settings, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+def _celery_available() -> bool:
+    """Return True if Redis broker is reachable for Celery."""
+    if os.environ.get('USE_CELERY', 'true').lower() == 'false':
+        return False
+    try:
+        from trademaster_project.celery import app as celery_app
+        celery_app.connection().ensure_connection(max_retries=1)
+        return True
+    except Exception:
+        return False
 
 
 @api_view(['POST'])
@@ -57,9 +86,37 @@ def bot_start(request):
     if BotSession.objects.filter(status='running').exists():
         return Response({'error': 'Bot is already running'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from .tasks import run_trade_task
-    result = run_trade_task.delay()
-    return Response({'message': 'Bot started', 'task_id': result.id}, status=status.HTTP_202_ACCEPTED)
+    if _celery_available():
+        try:
+            from .tasks import run_trade_task
+            result = run_trade_task.delay()
+            return Response(
+                {'message': 'Bot started', 'task_id': result.id, 'mode': 'celery'},
+                status=status.HTTP_202_ACCEPTED,
+            )
+        except Exception as exc:
+            if 'redis' not in str(exc).lower() and '6379' not in str(exc):
+                return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # Local fallback when Redis/Celery is not running (common on Windows dev)
+    from .tasks import run_trade_bot_in_thread
+
+    session = BotSession.objects.create(status='running', task_id='local-thread')
+    thread = threading.Thread(
+        target=run_trade_bot_in_thread,
+        args=(session.id,),
+        daemon=True,
+        name='trademaster-bot',
+    )
+    thread.start()
+    return Response(
+        {
+            'message': 'Bot started in local mode (no Redis). Install Redis + Celery worker for production.',
+            'session_id': session.id,
+            'mode': 'local-thread',
+        },
+        status=status.HTTP_202_ACCEPTED,
+    )
 
 
 @api_view(['POST'])
@@ -68,15 +125,21 @@ def bot_stop(request):
     if not running:
         return Response({'error': 'Bot is not running'}, status=status.HTTP_400_BAD_REQUEST)
 
-    from celery.app.control import Control
-    from trademaster_project.celery import app as celery_app
-    if running.task_id:
-        celery_app.control.revoke(running.task_id, terminate=True)
+    if running.task_id and running.task_id != 'local-thread':
+        try:
+            from trademaster_project.celery import app as celery_app
+            celery_app.control.revoke(running.task_id, terminate=True)
+        except Exception:
+            pass
+    else:
+        from .tasks import request_bot_stop
+
+        request_bot_stop()
 
     running.status = 'stopped'
     running.stopped_at = timezone.now()
     running.save()
-    return Response({'message': 'Bot stopped'})
+    return Response({'message': 'Bot stop requested'})
 
 
 # ─── Positions & Orders ───────────────────────────────────────────────────────
@@ -85,41 +148,45 @@ def bot_stop(request):
 def positions(request):
     """Live positions from Angel One API."""
     try:
-        from trading.broker import AngelOneClient
-        client = AngelOneClient()
-        client._initialize_smart_api()
-        client._load_instrument_list()
+        from trading.broker_cache import format_broker_error, get_angel_client
+        client = get_angel_client()
         data = client.get_positions()
         return Response(data)
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {'error': format_broker_error(e)},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
 
 @api_view(['GET'])
 def orders(request):
     """Live order book from Angel One API."""
     try:
-        from trading.broker import AngelOneClient
-        client = AngelOneClient()
-        client._initialize_smart_api()
-        client._load_instrument_list()
+        from trading.broker_cache import format_broker_error, get_angel_client
+        client = get_angel_client()
         data = client.get_order_book()
         return Response(data)
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {'error': format_broker_error(e)},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
 
 @api_view(['GET'])
 def capital(request):
     """Available trading capital from Angel One."""
     try:
-        from trading.broker import AngelOneClient
-        client = AngelOneClient()
-        client._initialize_smart_api()
+        from trading.broker_cache import format_broker_error, get_angel_client
+        client = get_angel_client()
         amount = client.get_trade_capital()
         return Response({'capital': amount})
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(
+            {'error': format_broker_error(e)},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
 
 # ─── P&L ─────────────────────────────────────────────────────────────────────

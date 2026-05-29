@@ -4,6 +4,7 @@ import './Navbar.css';
 const links = [
   { to: '/', label: 'Dashboard' },
   { to: '/watchlist', label: 'Watchlist' },
+  { to: '/charts', label: 'Charts' },
   { to: '/positions', label: 'Positions' },
   { to: '/pnl', label: 'P&L' },
   { to: '/sessions', label: 'Sessions' },

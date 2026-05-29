@@ -1,0 +1,17 @@
+[Unit]
+Description=TradeMaster Celery Beat (9:20 AM IST scheduler)
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/trademaster/backend
+Environment="PATH=/var/www/trademaster/backend/venv/bin"
+ExecStart=/var/www/trademaster/backend/venv/bin/celery \
+  -A trademaster_project beat --loglevel=info
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

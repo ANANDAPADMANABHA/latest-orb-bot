@@ -3,13 +3,22 @@ import time
 import pytz
 import pandas as pd
 
+from trading.broker import orb_high_low_from_df
 from trading.strategies.opening_range_breakout import OpeningRangeBreakout
 from trading.utils import get_stock_tickers
 
 
+def _should_stop_bot() -> bool:
+    try:
+        from api.tasks import is_bot_stop_requested
+        return is_bot_stop_requested()
+    except Exception:
+        return False
+
+
 class TradeMaster(OpeningRangeBreakout):
 
-    def make_some_money(self, tickers=None) -> None:
+    def make_some_money(self, tickers=None):
         print('Starting TradeMaster bot...')
         IST = pytz.timezone('Asia/Calcutta')
 
@@ -22,11 +31,9 @@ class TradeMaster(OpeningRangeBreakout):
 
         hi_lo_prices = {}
         for ticker in ORB_TICKERS:
-            if ticker in data_0920 and not data_0920[ticker].empty:
-                hi_lo_prices[ticker] = [
-                    data_0920[ticker]['high'].iloc[-1],
-                    data_0920[ticker]['low'].iloc[-1],
-                ]
+            levels = orb_high_low_from_df(data_0920.get(ticker))
+            if levels:
+                hi_lo_prices[ticker] = list(levels)
 
         now = dt.datetime.now(IST)
         seconds_to_sleep = 300 - (now.minute % 5) * 60 - now.second - now.microsecond / 1_000_000
@@ -41,6 +48,9 @@ class TradeMaster(OpeningRangeBreakout):
         )
 
         while dt.datetime.now(IST) < market_end_time:
+            if _should_stop_bot():
+                print('Bot stop requested — exiting loop.')
+                break
             print(f'Loop pass at {dt.datetime.now(IST).strftime("%H:%M:%S")}')
             positions_data = self.get_positions()
             positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
@@ -48,5 +58,6 @@ class TradeMaster(OpeningRangeBreakout):
             self.orb_strat(list(hi_lo_prices.keys()), hi_lo_prices, positions, open_orders)
             time.sleep(300 - ((time.time() - starttime) % 300.0))
 
-        self.log_pnl()
+        trades = self.log_pnl()
         print('Bot exiting after market close.')
+        return trades
