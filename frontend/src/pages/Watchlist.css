@@ -22,3 +22,19 @@
 .remove-btn:hover { background: rgba(239,68,68,0.08); }
 
 .empty-state { color: var(--text-muted); font-size: 0.88rem; padding: 1.5rem 0; }
+
+@media (max-width: 640px) {
+  .add-ticker-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-ticker-form input {
+    max-width: none;
+    width: 100%;
+  }
+
+  .add-ticker-form .btn {
+    width: 100%;
+  }
+}

@@ -57,4 +57,16 @@
 .stock-chart-container {
   width: 100%;
   position: relative;
+  min-height: 200px;
+}
+
+@media (max-width: 640px) {
+  .stock-chart-card {
+    padding: 0.85rem;
+    min-height: 240px;
+  }
+
+  .stock-chart-header {
+    flex-wrap: wrap;
+  }
 }

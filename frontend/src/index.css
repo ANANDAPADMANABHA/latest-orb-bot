@@ -17,7 +17,10 @@
   --shadow: 0 4px 24px rgba(0,0,0,0.4);
 }
 
-html { font-size: 15px; }
+html {
+  font-size: 15px;
+  -webkit-text-size-adjust: 100%;
+}
 
 body {
   background: var(--bg);
@@ -25,6 +28,11 @@ body {
   font-family: var(--font);
   min-height: 100vh;
   line-height: 1.5;
+  overflow-x: hidden;
+}
+
+body.nav-open {
+  overflow: hidden;
 }
 
 a { color: var(--accent); text-decoration: none; }
@@ -79,6 +87,39 @@ input:focus, select:focus { border-color: var(--accent); }
   padding: 1.25rem 1.5rem;
 }
 
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.page-sub {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* Horizontal scroll for wide tables on small screens */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -0.25rem;
+}
+
+.table-scroll table {
+  min-width: 36rem;
+}
+
+.card:has(> table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card > table {
+  min-width: 36rem;
+}
+
 .btn { border-radius: 8px; padding: 0.5rem 1.2rem; font-weight: 600; }
 .btn-primary { background: var(--accent); color: #fff; }
 .btn-danger  { background: var(--red); color: #fff; }
@@ -94,3 +135,44 @@ tbody tr:last-child { border-bottom: none; }
 
 .positive { color: var(--green); font-weight: 600; }
 .negative { color: var(--red); font-weight: 600; }
+
+@media (max-width: 768px) {
+  html { font-size: 14px; }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .btn {
+    min-height: 44px;
+    padding: 0.55rem 1rem;
+  }
+
+  .btn-sm {
+    min-height: 36px;
+    padding: 0.35rem 0.75rem;
+  }
+
+  thead th,
+  tbody td {
+    padding: 0.55rem 0.65rem;
+    font-size: 0.82rem;
+  }
+
+  input,
+  select {
+    font-size: 16px; /* prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .card > table,
+  .table-scroll table {
+    min-width: 32rem;
+  }
+}

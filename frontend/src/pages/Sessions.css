@@ -21,3 +21,19 @@
 
 .inner-table { margin-top: 0.5rem; width: 100%; }
 .inner-table th, .inner-table td { font-size: 0.82rem; padding: 0.45rem 0.7rem; }
+
+@media (max-width: 640px) {
+  .card > table {
+    min-width: 38rem;
+  }
+
+  .detail-row td {
+    padding: 0.65rem 0.5rem 0.85rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .inner-table {
+    min-width: 28rem;
+  }
+}

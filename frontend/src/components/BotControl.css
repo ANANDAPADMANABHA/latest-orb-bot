@@ -161,3 +161,25 @@
   color: var(--text-muted);
   flex-wrap: wrap;
 }
+
+@media (max-width: 640px) {
+  .bot-control-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.65rem;
+  }
+
+  .bot-control-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .bot-control-actions .btn {
+    width: 100%;
+  }
+
+  .bot-risk-select {
+    max-width: none;
+    width: 100%;
+  }
+}

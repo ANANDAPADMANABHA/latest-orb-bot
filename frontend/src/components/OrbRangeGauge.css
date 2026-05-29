@@ -126,3 +126,14 @@
 .legend-now.breakout-down {
   color: var(--red);
 }
+
+@media (max-width: 480px) {
+  .orb-gauge {
+    padding: 0.85rem;
+  }
+
+  .orb-gauge-legend {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+}

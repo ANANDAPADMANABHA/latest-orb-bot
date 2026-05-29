@@ -61,3 +61,27 @@
 .pnl-total { font-weight: 600; font-size: 0.9rem; }
 .muted { color: var(--text-muted); font-size: 0.82rem; }
 .empty-state { color: var(--text-muted); font-size: 0.88rem; padding: 1rem 0; }
+
+@media (max-width: 640px) {
+  .pnl-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pnl-page-header .btn {
+    width: 100%;
+  }
+
+  .pnl-table-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pnl-table-header input[type="date"] {
+    width: 100%;
+  }
+
+  .pnl-chart-wrap {
+    min-height: 220px;
+  }
+}

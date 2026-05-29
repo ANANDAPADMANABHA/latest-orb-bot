@@ -83,3 +83,24 @@
 .charts-attribution a:hover {
   color: var(--accent);
 }
+
+@media (max-width: 640px) {
+  .charts-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .charts-header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .charts-header-actions .btn {
+    flex: 1;
+    min-width: 8rem;
+  }
+
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}

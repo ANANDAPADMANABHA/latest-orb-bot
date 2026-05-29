@@ -23,3 +23,9 @@
   font-size: 0.78rem;
   color: var(--text-muted);
 }
+
+@media (max-width: 480px) {
+  .stat-value {
+    font-size: 1.45rem;
+  }
+}
