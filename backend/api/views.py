@@ -216,7 +216,6 @@ def pnl_today(request):
 def pnl_summary(request):
     """Aggregate daily P&L for chart."""
     from django.db.models import Sum
-    from django.db.models.functions import TruncDate
     summary = (
         PnLRecord.objects
         .values('date')
@@ -224,6 +223,27 @@ def pnl_summary(request):
         .order_by('date')
     )
     return Response(list(summary))
+
+
+@api_view(['POST'])
+def pnl_sync(request):
+    """Pull today's P&L from Angel One positions into the database."""
+    from trading.broker_cache import format_broker_error, get_angel_client
+    from trading.pnl_service import sync_pnl_records
+
+    try:
+        client = get_angel_client()
+        rows, count = sync_pnl_records(client, replace_today=True)
+        return Response({
+            'synced': count,
+            'trades': rows,
+            'message': 'No P&L rows from broker' if count == 0 else f'Synced {count} record(s)',
+        })
+    except Exception as e:
+        return Response(
+            {'error': format_broker_error(e)},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
 
 
 # ─── Sessions ─────────────────────────────────────────────────────────────────

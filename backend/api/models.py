@@ -69,6 +69,16 @@ class BotSettings(models.Model):
         default=STRATEGY_FIXED,
     )
     risk_percent = models.PositiveSmallIntegerField(default=1)
+    CAPITAL_USAGE_50 = 50
+    CAPITAL_USAGE_100 = 100
+    CAPITAL_USAGE_CHOICES = [
+        (CAPITAL_USAGE_50, '50%'),
+        (CAPITAL_USAGE_100, '100%'),
+    ]
+    max_capital_usage_percent = models.PositiveSmallIntegerField(
+        choices=CAPITAL_USAGE_CHOICES,
+        default=CAPITAL_USAGE_100,
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     @classmethod

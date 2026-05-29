@@ -81,8 +81,10 @@ class OpeningRangeBreakout(AngelOneClient):
         bot_settings = BotSettings.get_singleton()
         sl_strategy = bot_settings.stop_loss_strategy
         risk_pct = bot_settings.risk_percent / 100.0
+        usage_pct = bot_settings.max_capital_usage_percent
         print(f'Stop-loss strategy: {sl_strategy}')
         print(f'Risk per trade: {bot_settings.risk_percent}%')
+        print(f'Max capital per trade: {usage_pct}%')
 
         update_trailing_stops(self, positions, self.instrument_list, exchange)
 
@@ -143,7 +145,11 @@ class OpeningRangeBreakout(AngelOneClient):
                             print(f"Invalid SL/target for {ticker} (BUY), skipping")
                             continue
                         sl, tgt = levels
-                        quantity = calculate_quantity(capital, ltp, sl, risk_pct=risk_pct)
+                        quantity = calculate_quantity(
+                            capital, ltp, sl,
+                            risk_pct=risk_pct,
+                            max_capital_usage_percent=usage_pct,
+                        )
                         if quantity:
                             self._place_trade(
                                 ticker, 'BUY', quantity, ltp, sl, tgt, sl_strategy, exchange
@@ -158,7 +164,11 @@ class OpeningRangeBreakout(AngelOneClient):
                             print(f"Invalid SL/target for {ticker} (SELL), skipping")
                             continue
                         sl, tgt = levels
-                        quantity = calculate_quantity(capital, ltp, sl, risk_pct=risk_pct)
+                        quantity = calculate_quantity(
+                            capital, ltp, sl,
+                            risk_pct=risk_pct,
+                            max_capital_usage_percent=usage_pct,
+                        )
                         if quantity:
                             self._place_trade(
                                 ticker, 'SELL', quantity, ltp, sl, tgt, sl_strategy, exchange

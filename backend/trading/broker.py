@@ -306,21 +306,18 @@ class AngelOneClient:
             return None
 
     def log_pnl(self):
-        response = self.smart_api.position()
-        data = response.get("data", [])
-        if not data:
+        from trading.pnl_service import parse_position_rows
+
+        data = self.get_positions()
+        trades = parse_position_rows(data)
+        if not trades:
             print('No trades today')
             return []
-        trades = []
-        date_str = dt.datetime.now().strftime("%Y-%m-%d")
-        for item in data:
-            trades.append({
-                "date": date_str,
-                "symbol": item.get("symbolname"),
-                "pnl": item.get("pnl"),
-                "quantity": item.get("sellqty"),
-            })
-        log_trade_to_sheet("trade-master", "PnL", trades)
+        try:
+            from trading.utils import log_trade_to_sheet
+            log_trade_to_sheet('trade-master', 'PnL', trades)
+        except Exception as exc:
+            print(f'Google Sheet P&L log skipped: {exc}')
         return trades
 
     def hist_data_0920(
@@ -500,3 +497,93 @@ class AngelOneClient:
         except Exception as e:
             print(f"Error fetching order book: {e}")
             return []
+
+    _PENDING_ORDER_STATUSES = frozenset({
+        'open', 'trigger pending', 'amo', 'pending', 'validation pending',
+    })
+
+    def cancel_orders_for_symbol(self, tradingsymbol: str) -> dict:
+        """Cancel open/pending orders for a symbol. Returns cancelled ids and errors."""
+        symbol_key = tradingsymbol.upper().strip()
+        cancelled = []
+        errors = []
+
+        for order in self.get_order_book():
+            if str(order.get('tradingsymbol', '')).upper() != symbol_key:
+                continue
+            status = str(order.get('orderstatus', '')).lower().strip()
+            if status not in self._PENDING_ORDER_STATUSES:
+                continue
+            order_id = order.get('orderid') or order.get('orderId')
+            if not order_id:
+                continue
+            variety = order.get('variety') or 'NORMAL'
+            try:
+                self.smart_api.cancelOrder(str(order_id), variety)
+                cancelled.append(str(order_id))
+            except Exception as e:
+                errors.append({'order_id': str(order_id), 'error': str(e)})
+
+        return {'cancelled_orders': cancelled, 'cancel_errors': errors}
+
+    def exit_position(self, tradingsymbol: str, exchange: str = 'NSE') -> dict:
+        """
+        Cancel pending orders for symbol, then square off open position at market.
+        """
+        symbol_key = tradingsymbol.upper().strip()
+        if not symbol_key.endswith('-EQ'):
+            symbol_key = f'{symbol_key}-EQ'
+
+        self._load_instrument_list()
+
+        positions = self.get_positions()
+        position_row = None
+        for row in positions:
+            if str(row.get('tradingsymbol', '')).upper() == symbol_key:
+                position_row = row
+                break
+
+        if not position_row:
+            raise ValueError(f'No position found for {symbol_key}')
+
+        try:
+            netqty = int(float(position_row.get('netqty') or position_row.get('quantity') or 0))
+        except (TypeError, ValueError):
+            netqty = 0
+
+        if netqty == 0:
+            raise ValueError(f'No open quantity for {symbol_key}')
+
+        ticker = symbol_key.replace('-EQ', '')
+        realized_pnl = float(position_row.get('pnl') or 0)
+        cancel_result = self.cancel_orders_for_symbol(symbol_key)
+
+        exit_side = 'SELL' if netqty > 0 else 'BUY'
+        qty = abs(netqty)
+
+        square_off = {'placed': False, 'order_id': None, 'error': None}
+        try:
+            order_id = self.place_market_order(
+                self.instrument_list, ticker, exit_side, qty, exchange
+            )
+            if order_id:
+                square_off = {'placed': True, 'order_id': str(order_id), 'error': None}
+            else:
+                square_off = {
+                    'placed': False,
+                    'order_id': None,
+                    'error': 'Market square-off order was not placed',
+                }
+        except Exception as e:
+            square_off = {'placed': False, 'order_id': None, 'error': str(e)}
+
+        return {
+            'tradingsymbol': symbol_key,
+            'ticker': ticker,
+            'exit_side': exit_side,
+            'quantity': qty,
+            'realized_pnl': realized_pnl,
+            'cancelled_orders': cancel_result['cancelled_orders'],
+            'cancel_errors': cancel_result['cancel_errors'],
+            'square_off': square_off,
+        }

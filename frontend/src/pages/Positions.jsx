@@ -1,6 +1,12 @@
 import { useState, useEffect } from 'react';
-import { getBrokerLive } from '../api/client';
+import { getBrokerLive, exitPosition } from '../api/client';
 import './Positions.css';
+
+function positionQty(p) {
+  const q = p.netqty ?? p.quantity ?? 0;
+  const n = parseInt(Number(q), 10);
+  return Number.isNaN(n) ? 0 : n;
+}
 
 export default function Positions() {
   const [positions, setPositions] = useState([]);
@@ -8,10 +14,13 @@ export default function Positions() {
   const [posLoading, setPosLoading] = useState(true);
   const [ordLoading, setOrdLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [exitingSymbol, setExitingSymbol] = useState(null);
 
   const reload = async () => {
     setPosLoading(true);
     setOrdLoading(true);
+    setError('');
     try {
       const { data } = await getBrokerLive();
       setPositions(data.positions || []);
@@ -29,6 +38,36 @@ export default function Positions() {
 
   useEffect(() => { reload(); }, []);
 
+  const handleExit = async (p) => {
+    const symbol = p.tradingsymbol;
+    const qty = positionQty(p);
+    if (!symbol || qty === 0) return;
+
+    const ok = window.confirm(
+      `Exit ${symbol} at market (${qty} shares) and cancel pending orders?`
+    );
+    if (!ok) return;
+
+    setExitingSymbol(symbol);
+    setError('');
+    setSuccess('');
+    try {
+      const { data } = await exitPosition(symbol);
+      const cancelled = data.cancelled_orders?.length ?? 0;
+      const placed = data.square_off?.placed;
+      setSuccess(
+        placed
+          ? `Exit submitted for ${symbol}. Cancelled ${cancelled} pending order(s).`
+          : `Orders cancelled for ${symbol}, but square-off failed: ${data.square_off?.error || 'unknown'}`
+      );
+      await reload();
+    } catch (e) {
+      setError(e.response?.data?.error || e.message || 'Failed to exit position');
+    } finally {
+      setExitingSymbol(null);
+    }
+  };
+
   const totalPnl = positions.reduce((s, p) => s + parseFloat(p.pnl || 0), 0);
 
   return (
@@ -39,6 +78,7 @@ export default function Positions() {
       </div>
 
       {error && <div className="alert-error">{error}</div>}
+      {success && <div className="alert-success">{success}</div>}
 
       <div className="card">
         <div className="section-header">
@@ -64,21 +104,40 @@ export default function Positions() {
                 <th>Sell Price</th>
                 <th>P&L</th>
                 <th>Product</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {positions.map((p, i) => (
-                <tr key={i}>
-                  <td><strong>{p.tradingsymbol}</strong></td>
-                  <td>{p.netqty ?? p.quantity}</td>
-                  <td>₹{parseFloat(p.buyavgprice || 0).toFixed(2)}</td>
-                  <td>₹{parseFloat(p.sellavgprice || 0).toFixed(2)}</td>
-                  <td className={parseFloat(p.pnl) >= 0 ? 'positive' : 'negative'}>
-                    ₹{parseFloat(p.pnl || 0).toFixed(2)}
-                  </td>
-                  <td><span className="badge badge-blue">{p.producttype}</span></td>
-                </tr>
-              ))}
+              {positions.map((p, i) => {
+                const qty = positionQty(p);
+                const canExit = qty !== 0;
+                return (
+                  <tr key={p.tradingsymbol || i}>
+                    <td><strong>{p.tradingsymbol}</strong></td>
+                    <td>{qty}</td>
+                    <td>₹{parseFloat(p.buyavgprice || 0).toFixed(2)}</td>
+                    <td>₹{parseFloat(p.sellavgprice || 0).toFixed(2)}</td>
+                    <td className={parseFloat(p.pnl) >= 0 ? 'positive' : 'negative'}>
+                      ₹{parseFloat(p.pnl || 0).toFixed(2)}
+                    </td>
+                    <td><span className="badge badge-blue">{p.producttype}</span></td>
+                    <td className="positions-actions">
+                      {canExit ? (
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          disabled={exitingSymbol === p.tradingsymbol}
+                          onClick={() => handleExit(p)}
+                        >
+                          {exitingSymbol === p.tradingsymbol ? 'Exiting…' : 'Exit'}
+                        </button>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

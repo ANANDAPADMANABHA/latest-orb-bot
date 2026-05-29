@@ -48,12 +48,37 @@ def get_stock_tickers(sheet_name: str, worksheet_name: str = 'Sheet1') -> list:
     return tickers
 
 
-def calculate_quantity(capital, entry_price, stop_loss_price, risk_pct=0.01, rr=2):
-    risk_per_trade = capital * risk_pct
-    per_share_risk = abs(entry_price - stop_loss_price)
-    if per_share_risk == 0:
+def calculate_quantity(
+    capital,
+    entry_price,
+    stop_loss_price,
+    risk_pct=0.01,
+    max_capital_usage_percent=100,
+    min_sl_distance_pct=0.005,
+):
+    """
+    Position size: min(risk-based qty, affordable qty by cash).
+    min_sl_distance_pct floors per-share risk to avoid huge qty on tight SL.
+    """
+    if entry_price <= 0 or capital <= 0:
         return 0
-    quantity = int(risk_per_trade // per_share_risk)
+
+    per_share_risk = abs(entry_price - stop_loss_price)
+    min_risk = entry_price * min_sl_distance_pct
+    per_share_risk = max(per_share_risk, min_risk)
+
+    risk_per_trade = capital * risk_pct
+    risk_qty = int(risk_per_trade // per_share_risk) if per_share_risk else 0
+
+    deployable = capital * (max_capital_usage_percent / 100.0)
+    cash_cap_qty = int(deployable // entry_price)
+
+    quantity = max(0, min(risk_qty, cash_cap_qty))
+    if risk_qty > cash_cap_qty and cash_cap_qty > 0:
+        print(
+            f'Quantity capped by capital: risk-based {risk_qty} -> {quantity} '
+            f'({max_capital_usage_percent}% of Rs {capital})'
+        )
     return quantity
 
 

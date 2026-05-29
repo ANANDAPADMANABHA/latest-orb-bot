@@ -35,10 +35,20 @@ class PnLRecordSerializer(serializers.ModelSerializer):
 class BotSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = BotSettings
-        fields = ['stop_loss_strategy', 'risk_percent', 'updated_at']
+        fields = [
+            'stop_loss_strategy',
+            'risk_percent',
+            'max_capital_usage_percent',
+            'updated_at',
+        ]
         read_only_fields = ['updated_at']
 
     def validate_risk_percent(self, value):
         if value < 1 or value > 10:
             raise serializers.ValidationError('Risk percent must be between 1 and 10.')
+        return value
+
+    def validate_max_capital_usage_percent(self, value):
+        if value not in (50, 100):
+            raise serializers.ValidationError('Max capital usage must be 50 or 100.')
         return value

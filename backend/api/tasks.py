@@ -22,7 +22,7 @@ def request_bot_stop() -> None:
 
 def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
     """Core bot run logic (used by Celery and local thread fallback)."""
-    from api.models import BotSession, PnLRecord, WatchlistTicker
+    from api.models import BotSession, WatchlistTicker
     from trading.trading_bot import TradeMaster
 
     if session_id:
@@ -39,16 +39,10 @@ def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
             WatchlistTicker.objects.filter(is_active=True).values_list('symbol', flat=True)
         )
         bot = TradeMaster()
-        trades = bot.make_some_money(tickers=db_tickers if db_tickers else None)
+        bot.make_some_money(tickers=db_tickers if db_tickers else None)
 
-        if trades:
-            for t in trades:
-                PnLRecord.objects.create(
-                    date=dt.date.today(),
-                    symbol=t.get('symbol', ''),
-                    quantity=int(t.get('quantity') or 0),
-                    pnl=float(t.get('pnl') or 0),
-                )
+        from trading.pnl_service import sync_pnl_records
+        sync_pnl_records(bot, replace_today=True)
 
         if session.status == 'running':
             session.status = 'completed'

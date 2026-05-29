@@ -31,12 +31,15 @@ export const stopBot = () => api.post('/bot/stop/');
 
 // Live data (broker/live uses one Angel One login for both)
 export const getBrokerLive = () => api.get('/broker/live/');
+export const exitPosition = (tradingsymbol) =>
+  api.post('/positions/exit/', { tradingsymbol });
 export const getPositions = () => api.get('/positions/');
 export const getOrders = () => api.get('/orders/');
 export const getCapital = () => api.get('/capital/');
 
 // P&L
 export const getPnLHistory = (date) => api.get('/pnl/', { params: date ? { date } : {} });
+export const syncPnL = () => api.post('/pnl/sync/');
 export const getPnLToday = () => api.get('/pnl/today/');
 export const getPnLSummary = () => api.get('/pnl/summary/');
 

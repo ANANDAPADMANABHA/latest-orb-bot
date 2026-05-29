@@ -21,6 +21,7 @@ urlpatterns = [
     # Live market data (broker_live = one login for positions + orders)
     path('broker/live/', broker_views.broker_live, name='broker-live'),
     path('positions/', views.positions, name='positions'),
+    path('positions/exit/', broker_views.exit_position_view, name='positions-exit'),
     path('orders/', views.orders, name='orders'),
     path('capital/', views.capital, name='capital'),
 
@@ -28,6 +29,7 @@ urlpatterns = [
     path('pnl/', views.pnl_history, name='pnl-history'),
     path('pnl/today/', views.pnl_today, name='pnl-today'),
     path('pnl/summary/', views.pnl_summary, name='pnl-summary'),
+    path('pnl/sync/', views.pnl_sync, name='pnl-sync'),
 
     # Sessions
     path('sessions/', views.sessions, name='sessions'),

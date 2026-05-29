@@ -22,11 +22,25 @@ const STRATEGIES = [
 
 const RISK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+const CAPITAL_USAGE_OPTIONS = [
+  {
+    value: 100,
+    label: '100% of available cash',
+    description: 'Maximum shares = floor(capital ÷ price) for one position.',
+  },
+  {
+    value: 50,
+    label: '50% of available cash',
+    description: 'Leave half your balance free for other trades or margin.',
+  },
+];
+
 export default function BotControl() {
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [capitalUsageLoading, setCapitalUsageLoading] = useState(false);
   const [error, setError] = useState('');
 
   const fetchStatus = async () => {
@@ -107,9 +121,31 @@ export default function BotControl() {
     }
   };
 
+  const handleCapitalUsageChange = async (percent) => {
+    const next = Number(percent);
+    if (capitalUsageLoading || status?.settings?.max_capital_usage_percent === next) {
+      return;
+    }
+    setCapitalUsageLoading(true);
+    setError('');
+    try {
+      await updateBotSettings({ max_capital_usage_percent: next });
+      await fetchStatus();
+    } catch (e) {
+      setError(
+        e.response?.data?.max_capital_usage_percent?.[0]
+        || e.response?.data?.error
+        || 'Failed to update capital usage',
+      );
+    } finally {
+      setCapitalUsageLoading(false);
+    }
+  };
+
   const isRunning = status?.is_running;
   const activeStrategy = status?.settings?.stop_loss_strategy || 'fixed_percent';
   const activeRisk = status?.settings?.risk_percent ?? 1;
+  const activeCapitalUsage = status?.settings?.max_capital_usage_percent ?? 100;
 
   return (
     <div className="bot-control card">
@@ -179,6 +215,32 @@ export default function BotControl() {
             <option key={n} value={n}>{n}%</option>
           ))}
         </select>
+      </div>
+
+      <div className="bot-strategy-section">
+        <div className="bot-strategy-title">Max capital per trade</div>
+        <p className="bot-strategy-hint">
+          Caps share count so orders fit your balance. Applies from the next trade.
+        </p>
+        <div className="bot-strategy-options">
+          {CAPITAL_USAGE_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`bot-strategy-option${activeCapitalUsage === opt.value ? ' active' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={activeCapitalUsage === opt.value}
+                disabled={capitalUsageLoading}
+                onChange={() => handleCapitalUsageChange(opt.value)}
+              />
+              <span className="bot-strategy-option-text">
+                <span className="bot-strategy-option-label">{opt.label}</span>
+                <span className="bot-strategy-option-desc">{opt.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
       </div>
 
       {status?.session && (

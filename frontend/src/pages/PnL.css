@@ -1,5 +1,43 @@
 .pnl-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.pnl-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.alert-info {
+  background: rgba(79, 142, 247, 0.1);
+  border: 1px solid rgba(79, 142, 247, 0.3);
+  color: var(--accent);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+
+.alert-error {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+}
+
 .chart-card { padding-bottom: 0.5rem; }
+
+.pnl-chart-wrap {
+  width: 100%;
+  min-height: 260px;
+}
+
+.chart-hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: -0.5rem 0 0.75rem;
+}
 
 .section-title {
   font-size: 0.85rem;

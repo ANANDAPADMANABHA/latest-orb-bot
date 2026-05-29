@@ -1,64 +1,235 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine
 } from 'recharts';
-import { getPnLHistory, getPnLSummary } from '../api/client';
+import { getPnLHistory, getPnLSummary, syncPnL } from '../api/client';
 import './PnL.css';
+
+const MIN_CHART_DAYS = 10;
+
+function normalizeDateKey(value) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function formatIsoDate(y, m, d) {
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function todayIsoLocal() {
+  const now = new Date();
+  return formatIsoDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+function addDaysIso(iso, days) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const next = new Date(y, m - 1, d + days);
+  return formatIsoDate(next.getFullYear(), next.getMonth() + 1, next.getDate());
+}
+
+function formatChartDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+}
+
+function aggregateDailyPnL(summary, records) {
+  const byDate = new Map();
+
+  for (const row of summary) {
+    const key = normalizeDateKey(row.date);
+    if (!key) continue;
+    byDate.set(key, Number(row.total_pnl) || 0);
+  }
+
+  if (byDate.size === 0) {
+    for (const row of records) {
+      const key = normalizeDateKey(row.date);
+      if (!key) continue;
+      byDate.set(key, (byDate.get(key) || 0) + (Number(row.pnl) || 0));
+    }
+  }
+
+  return byDate;
+}
+
+/** Ensure at least MIN_CHART_DAYS on the x-axis; fill missing days with zero P&L. */
+function buildPaddedChartData(summary, records, minDays = MIN_CHART_DAYS) {
+  const byDate = aggregateDailyPnL(summary, records);
+  const datedKeys = [...byDate.keys()].sort();
+
+  let endIso = todayIsoLocal();
+  if (datedKeys.length && datedKeys[datedKeys.length - 1] > endIso) {
+    endIso = datedKeys[datedKeys.length - 1];
+  }
+
+  let startIso = addDaysIso(endIso, -(minDays - 1));
+  if (datedKeys.length && datedKeys[0] < startIso) {
+    startIso = datedKeys[0];
+  }
+
+  const rows = [];
+  for (let cur = startIso; cur <= endIso; cur = addDaysIso(cur, 1)) {
+    const pnl = byDate.get(cur) ?? 0;
+    rows.push({
+      date: cur,
+      label: formatChartDate(cur),
+      pnl: Math.round(pnl * 100) / 100,
+    });
+  }
+
+  return rows;
+}
+
+function barColor(pnl) {
+  if (pnl > 0) return 'var(--green)';
+  if (pnl < 0) return 'var(--red)';
+  return 'var(--text-muted)';
+}
+
+function chartYDomain(data) {
+  const values = data.map(d => d.pnl);
+  const maxPnl = Math.max(...values, 0);
+  const minPnl = Math.min(...values, 0);
+
+  if (maxPnl === 0 && minPnl === 0) {
+    return [-100, 100];
+  }
+
+  const span = Math.max(maxPnl - minPnl, 50);
+  const pad = span * 0.2;
+  return [minPnl - pad, maxPnl + pad];
+}
 
 export default function PnL() {
   const [records, setRecords] = useState([]);
+  const [chartRecords, setChartRecords] = useState([]);
   const [summary, setSummary] = useState([]);
   const [dateFilter, setDateFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [error, setError] = useState('');
 
   const load = async () => {
     setLoading(true);
+    setError('');
     try {
-      const [r, s] = await Promise.all([
+      const [r, s, all] = await Promise.all([
         getPnLHistory(dateFilter || null),
         getPnLSummary(),
+        getPnLHistory(null),
       ]);
       setRecords(r.data);
       setSummary(s.data);
+      setChartRecords(all.data);
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to load P&L data');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, [dateFilter]);
+  const handleSync = async () => {
+    setSyncing(true);
+    setError('');
+    setSyncMessage('');
+    try {
+      const { data } = await syncPnL();
+      setSyncMessage(data.message || `Synced ${data.synced} record(s)`);
+      await load();
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to sync P&L from broker');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, [dateFilter]);
+
+  useEffect(() => {
+    const init = async () => {
+      setSyncing(true);
+      try {
+        await syncPnL();
+        await load();
+      } catch {
+        await load();
+      } finally {
+        setSyncing(false);
+      }
+    };
+    init();
+  }, []);
 
   const totalFiltered = records.reduce((s, r) => s + parseFloat(r.pnl || 0), 0);
-  const chartData = summary.map(d => ({
-    date: d.date,
-    pnl: parseFloat(d.total_pnl.toFixed(2)),
-  }));
+  const chartData = useMemo(
+    () => buildPaddedChartData(summary, chartRecords),
+    [summary, chartRecords],
+  );
+  const yDomain = useMemo(() => chartYDomain(chartData), [chartData]);
+  const hasTradeData = summary.length > 0 || chartRecords.length > 0;
 
   return (
     <div className="pnl-page">
-      <h1 className="page-title">P&L History</h1>
+      <div className="pnl-page-header">
+        <h1 className="page-title">P&L History</h1>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={handleSync}
+          disabled={syncing || loading}
+        >
+          {syncing ? 'Syncing…' : '⟳ Sync from broker'}
+        </button>
+      </div>
+
+      {error && <div className="alert-error">{error}</div>}
+      {syncMessage && !error && <div className="alert-info">{syncMessage}</div>}
 
       <div className="card chart-card">
         <div className="section-title">Daily P&L Chart</div>
-        {chartData.length === 0 ? (
-          <div className="empty-state">No data yet</div>
-        ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" stroke="var(--text-muted)" tick={{ fontSize: 11 }} />
-              <YAxis stroke="var(--text-muted)" tick={{ fontSize: 11 }} tickFormatter={v => `₹${v}`} />
+        {!hasTradeData && (
+          <div className="chart-hint">
+            No trades synced yet — chart shows the last {MIN_CHART_DAYS} days.
+          </div>
+        )}
+        <div className="pnl-chart-wrap">
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart
+              data={chartData}
+              margin={{ top: 8, right: 12, left: 4, bottom: 4 }}
+              barCategoryGap="25%"
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+              <XAxis
+                dataKey="label"
+                stroke="var(--text-muted)"
+                tick={{ fontSize: 11 }}
+                interval={0}
+              />
+              <YAxis
+                stroke="var(--text-muted)"
+                tick={{ fontSize: 11 }}
+                tickFormatter={v => `₹${Math.round(v)}`}
+                domain={yDomain}
+                width={56}
+              />
+              <ReferenceLine y={0} stroke="var(--border)" strokeDasharray="4 4" />
               <Tooltip
                 contentStyle={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8 }}
-                formatter={v => [`₹${v}`, 'P&L']}
+                labelFormatter={(_, items) => items?.[0]?.payload?.date ?? ''}
+                formatter={v => [`₹${Number(v).toFixed(2)}`, 'P&L']}
               />
-              <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="pnl" radius={[4, 4, 0, 0]} maxBarSize={40} minPointSize={3}>
                 {chartData.map((d, i) => (
-                  <Cell key={i} fill={d.pnl >= 0 ? 'var(--green)' : 'var(--red)'} />
+                  <Cell key={`${d.date}-${i}`} fill={barColor(d.pnl)} fillOpacity={d.pnl === 0 ? 0.25 : 1} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        )}
+        </div>
       </div>
 
       <div className="card">
@@ -81,7 +252,9 @@ export default function PnL() {
         {loading ? (
           <div className="empty-state">Loading…</div>
         ) : records.length === 0 ? (
-          <div className="empty-state">No records{dateFilter ? ` for ${dateFilter}` : ''}</div>
+          <div className="empty-state">
+            No records{dateFilter ? ` for ${dateFilter}` : ''}. Sync from broker after trading.
+          </div>
         ) : (
           <table>
             <thead>
