@@ -16,9 +16,14 @@ done
 
 echo ""
 echo "==> Checking API endpoints..."
-curl -sf "${BASE_URL}/api/bot/status/" | head -c 200 && echo "" || echo "  FAIL /api/bot/status/"
-curl -sf "${BASE_URL}/api/watchlist/" | head -c 200 && echo "" || echo "  FAIL /api/watchlist/"
 curl -sf "${BASE_URL}/api/health/" | head -c 400 && echo "" || echo "  FAIL /api/health/"
+
+BOT_HTTP=$(curl -so /dev/null -w "%{http_code}" "${BASE_URL}/api/bot/status/" || echo "000")
+if [[ "${BOT_HTTP}" == "401" || "${BOT_HTTP}" == "403" ]]; then
+  echo "  OK  /api/bot/status/ (${BOT_HTTP} — auth required, as expected)"
+else
+  curl -sf "${BASE_URL}/api/bot/status/" | head -c 200 && echo "" || echo "  FAIL /api/bot/status/ (HTTP ${BOT_HTTP})"
+fi
 
 echo ""
 echo "==> Checking frontend..."
@@ -34,9 +39,14 @@ echo "==> VPS public IP (must match Angel One Primary Static IP)..."
 curl -sf ifconfig.me && echo ""
 
 echo ""
-echo "==> Angel One capital (requires valid .env credentials)..."
-CAPITAL=$(curl -sf "${BASE_URL}/api/capital/" || echo '{"error":"failed"}')
-echo "  ${CAPITAL}" | head -c 300
+echo "==> Angel One capital (requires valid .env credentials + logged-in session)..."
+CAPITAL_HTTP=$(curl -so /dev/null -w "%{http_code}" "${BASE_URL}/api/capital/" || echo "000")
+if [[ "${CAPITAL_HTTP}" == "401" || "${CAPITAL_HTTP}" == "403" ]]; then
+  echo "  OK  /api/capital/ (${CAPITAL_HTTP} — auth required, as expected)"
+else
+  CAPITAL=$(curl -sf "${BASE_URL}/api/capital/" || echo '{"error":"failed"}')
+  echo "  ${CAPITAL}" | head -c 300
+fi
 echo ""
 
 echo "Done. Review output above for any FAIL lines."

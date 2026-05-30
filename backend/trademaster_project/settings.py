@@ -118,10 +118,27 @@ if DEBUG:
     ]
 CORS_ALLOW_CREDENTIALS = True
 
-# Django REST Framework
+# CSRF — required for session login from the React SPA
+_csrf_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in _csrf_env.split(',') if o.strip()
+]
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ]
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+
+# Django REST Framework — session auth; login endpoints use AllowAny explicitly
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',

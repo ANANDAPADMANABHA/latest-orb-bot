@@ -63,7 +63,37 @@ sudo bash deploy/verify.sh https://yourdomain.com
 | GET | `/api/pnl/today/` | Today's trades + total P&L |
 | GET | `/api/pnl/summary/` | Daily aggregate P&L (for chart) |
 | GET | `/api/sessions/` | Past bot sessions |
-| GET | `/api/health/` | System status (broker, Celery, IP, market, bot heartbeat). Add `?probe=1` to test Angel One login |
+| GET | `/api/health/` | System status (public; no login). Add `?probe=1` to test Angel One login |
+| GET | `/api/auth/csrf/` | Set CSRF cookie (public) |
+| POST | `/api/auth/login/` | Sign in (public) |
+| POST | `/api/auth/logout/` | Sign out |
+| GET | `/api/auth/me/` | Current user |
+
+All endpoints except `/api/health/` and `/api/auth/csrf|login/` require a logged-in session.
+
+---
+
+## Login
+
+The app uses **Django session login**. Create a user once, then sign in at `/login`.
+
+**Local dev:**
+
+```bash
+cd backend
+python manage.py createsuperuser
+```
+
+**Production (VPS):**
+
+```bash
+cd /var/www/trademaster/backend
+source venv/bin/activate
+python manage.py createsuperuser
+deactivate
+```
+
+Then open your site (e.g. `https://trademaster.fit/login`) and sign in. The session cookie keeps you logged in until you click **Log out**.
 
 ---
 
@@ -89,8 +119,10 @@ copy .env.example .env
 # Apply migrations
 python manage.py migrate
 
-# Create a superuser (optional, for /admin)
+# Create login user (required for the web UI)
 python manage.py createsuperuser
+
+# Optional: Django admin at /admin
 
 # Start development server
 python manage.py runserver
@@ -104,7 +136,7 @@ npm install
 npm run dev
 ```
 
-Frontend runs at http://localhost:5173 and proxies `/api` calls to the Django server at `http://localhost:8000`.
+Frontend runs at http://localhost:5173 and proxies `/api` calls to the Django server at `http://localhost:8000`. Sign in at http://localhost:5173/login after creating a user.
 
 ### 3. Start Bot (Celery + Redis)
 

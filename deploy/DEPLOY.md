@@ -29,6 +29,10 @@ cd /var/www/trademaster
 sudo bash deploy/deploy.sh
 sudo bash deploy/install-services.sh
 
+# 4b. Create web login user (once)
+cd /var/www/trademaster/backend
+sudo -u www-data venv/bin/python manage.py createsuperuser
+
 # 5. HTTPS (after DNS propagates)
 sudo bash deploy/ssl.sh yourdomain.com
 
@@ -65,6 +69,17 @@ Copy [backend/.env.production.example](../backend/.env.production.example) to `b
 | `REDIS_URL` | Yes | `redis://127.0.0.1:6379/0` |
 | `DATABASE_URL` | Optional | PostgreSQL; omit for SQLite |
 | `CORS_ALLOWED_ORIGINS` | Optional | Only if UI on different domain |
+
+## Web login
+
+All API routes except `/api/health/` and login require a Django user session. After first deploy:
+
+```bash
+cd /var/www/trademaster/backend
+sudo -u www-data venv/bin/python manage.py createsuperuser
+```
+
+Sign in at `https://yourdomain.com/login`.
 
 ## Angel One IP setup
 

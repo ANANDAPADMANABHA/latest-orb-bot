@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import './Navbar.css';
 
 const links = [
@@ -14,6 +15,8 @@ const links = [
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     setMenuOpen(false);
@@ -23,6 +26,11 @@ export default function Navbar() {
     document.body.classList.toggle('nav-open', menuOpen);
     return () => document.body.classList.remove('nav-open');
   }, [menuOpen]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   return (
     <nav className="navbar">
@@ -58,6 +66,12 @@ export default function Navbar() {
               </NavLink>
             </li>
           ))}
+          <li className="navbar-user-item">
+            <span className="navbar-user">{user?.username}</span>
+            <button type="button" className="navbar-logout" onClick={handleLogout}>
+              Log out
+            </button>
+          </li>
         </ul>
       </div>
     </nav>

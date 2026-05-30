@@ -1,9 +1,16 @@
 from django.urls import path
 from . import views
+from . import auth_views
 from . import broker_views
 from . import chart_views
 
 urlpatterns = [
+    # Auth
+    path('auth/csrf/', auth_views.auth_csrf, name='auth-csrf'),
+    path('auth/login/', auth_views.auth_login, name='auth-login'),
+    path('auth/logout/', auth_views.auth_logout, name='auth-logout'),
+    path('auth/me/', auth_views.auth_me, name='auth-me'),
+
     # Watchlist
     path('watchlist/', views.watchlist, name='watchlist'),
     path('watchlist/<int:pk>/', views.watchlist_detail, name='watchlist-detail'),

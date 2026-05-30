@@ -1,9 +1,45 @@
 import axios from 'axios';
 
+function getCookie(name) {
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 const api = axios.create({
   baseURL: '/api',
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
+
+api.interceptors.request.use((config) => {
+  const method = config.method?.toLowerCase();
+  if (method && ['post', 'put', 'patch', 'delete'].includes(method)) {
+    const csrfToken = getCookie('csrftoken');
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken;
+    }
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isLoginRequest = error.config?.url?.includes('/auth/login/');
+    const onLoginPage = window.location.pathname === '/login';
+    if (error.response?.status === 401 && !isLoginRequest && !onLoginPage) {
+      window.location.assign('/login');
+    }
+    return Promise.reject(error);
+  },
+);
+
+// Auth
+export const fetchCsrf = () => api.get('/auth/csrf/');
+export const login = (username, password) =>
+  api.post('/auth/login/', { username, password });
+export const logout = () => api.post('/auth/logout/');
+export const getMe = () => api.get('/auth/me/');
 
 // Watchlist
 export const getWatchlist = () => api.get('/watchlist/');
