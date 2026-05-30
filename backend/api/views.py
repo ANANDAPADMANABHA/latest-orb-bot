@@ -193,6 +193,10 @@ def capital(request):
 
 @api_view(['GET'])
 def pnl_history(request):
+    from trading.pnl_service import cleanup_pnl_records
+
+    cleanup_pnl_records()
+
     records = PnLRecord.objects.all()
     date_filter = request.query_params.get('date')
     if date_filter:
@@ -202,6 +206,9 @@ def pnl_history(request):
 
 @api_view(['GET'])
 def pnl_today(request):
+    from trading.pnl_service import cleanup_pnl_records
+
+    cleanup_pnl_records()
     today = dt.date.today()
     records = PnLRecord.objects.filter(date=today)
     total = sum(r.pnl for r in records)
@@ -216,6 +223,9 @@ def pnl_today(request):
 def pnl_summary(request):
     """Aggregate daily P&L for chart."""
     from django.db.models import Sum
+    from trading.pnl_service import cleanup_pnl_records
+
+    cleanup_pnl_records()
     summary = (
         PnLRecord.objects
         .values('date')
@@ -229,14 +239,16 @@ def pnl_summary(request):
 def pnl_sync(request):
     """Pull today's P&L from Angel One positions into the database."""
     from trading.broker_cache import format_broker_error, get_angel_client
-    from trading.pnl_service import sync_pnl_records
+    from trading.pnl_service import cleanup_pnl_records, sync_pnl_records
 
     try:
         client = get_angel_client()
         rows, count = sync_pnl_records(client, replace_today=True)
+        cleaned = cleanup_pnl_records()
         return Response({
             'synced': count,
             'trades': rows,
+            'cleaned': cleaned,
             'message': 'No P&L rows from broker' if count == 0 else f'Synced {count} record(s)',
         })
     except Exception as e:

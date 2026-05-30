@@ -102,7 +102,6 @@ function chartYDomain(data) {
 
 export default function PnL() {
   const [records, setRecords] = useState([]);
-  const [chartRecords, setChartRecords] = useState([]);
   const [summary, setSummary] = useState([]);
   const [dateFilter, setDateFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -110,66 +109,53 @@ export default function PnL() {
   const [syncMessage, setSyncMessage] = useState('');
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = async ({ syncFirst = false } = {}) => {
     setLoading(true);
     setError('');
+    if (syncFirst) {
+      setSyncing(true);
+      setSyncMessage('');
+    }
     try {
-      const [r, s, all] = await Promise.all([
+      if (syncFirst) {
+        try {
+          const { data } = await syncPnL();
+          setSyncMessage(data.message || `Synced ${data.synced} record(s)`);
+        } catch (e) {
+          setError(e.response?.data?.error || 'Failed to sync P&L from broker');
+        }
+      }
+      const [r, s] = await Promise.all([
         getPnLHistory(dateFilter || null),
         getPnLSummary(),
-        getPnLHistory(null),
       ]);
       setRecords(r.data);
       setSummary(s.data);
-      setChartRecords(all.data);
     } catch (e) {
-      setError(e.response?.data?.error || 'Failed to load P&L data');
+      if (!syncFirst || !error) {
+        setError(e.response?.data?.error || 'Failed to load P&L data');
+      }
     } finally {
       setLoading(false);
+      if (syncFirst) setSyncing(false);
     }
   };
 
   const handleSync = async () => {
-    setSyncing(true);
-    setError('');
-    setSyncMessage('');
-    try {
-      const { data } = await syncPnL();
-      setSyncMessage(data.message || `Synced ${data.synced} record(s)`);
-      await load();
-    } catch (e) {
-      setError(e.response?.data?.error || 'Failed to sync P&L from broker');
-    } finally {
-      setSyncing(false);
-    }
+    await load({ syncFirst: true });
   };
 
   useEffect(() => {
-    load();
+    load({ syncFirst: !dateFilter });
   }, [dateFilter]);
-
-  useEffect(() => {
-    const init = async () => {
-      setSyncing(true);
-      try {
-        await syncPnL();
-        await load();
-      } catch {
-        await load();
-      } finally {
-        setSyncing(false);
-      }
-    };
-    init();
-  }, []);
 
   const totalFiltered = records.reduce((s, r) => s + parseFloat(r.pnl || 0), 0);
   const chartData = useMemo(
-    () => buildPaddedChartData(summary, chartRecords),
-    [summary, chartRecords],
+    () => buildPaddedChartData(summary, records),
+    [summary, records],
   );
   const yDomain = useMemo(() => chartYDomain(chartData), [chartData]);
-  const hasTradeData = summary.length > 0 || chartRecords.length > 0;
+  const hasTradeData = summary.length > 0;
 
   return (
     <div className="pnl-page">
