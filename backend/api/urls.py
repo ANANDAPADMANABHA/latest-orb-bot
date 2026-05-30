@@ -33,4 +33,7 @@ urlpatterns = [
 
     # Sessions
     path('sessions/', views.sessions, name='sessions'),
+
+    # System health
+    path('health/', views.system_health, name='system-health'),
 ]

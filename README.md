@@ -63,6 +63,7 @@ sudo bash deploy/verify.sh https://yourdomain.com
 | GET | `/api/pnl/today/` | Today's trades + total P&L |
 | GET | `/api/pnl/summary/` | Daily aggregate P&L (for chart) |
 | GET | `/api/sessions/` | Past bot sessions |
+| GET | `/api/health/` | System status (broker, Celery, IP, market, bot heartbeat). Add `?probe=1` to test Angel One login |
 
 ---
 

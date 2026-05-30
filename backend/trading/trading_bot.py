@@ -15,7 +15,7 @@ def _should_stop_bot() -> bool:
 
 class TradeMaster(OpeningRangeBreakout):
 
-    def make_some_money(self, tickers=None):
+    def make_some_money(self, tickers=None, session_id=None):
         print('Starting TradeMaster bot...')
         IST = pytz.timezone('Asia/Calcutta')
 
@@ -52,6 +52,8 @@ class TradeMaster(OpeningRangeBreakout):
                 print('Bot stop requested — exiting loop.')
                 break
             print(f'Loop pass at {dt.datetime.now(IST).strftime("%H:%M:%S")}')
+            from api.tasks import touch_bot_heartbeat
+            touch_bot_heartbeat(session_id)
             positions_data = self.get_positions()
             positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
             open_orders = self.get_open_orders()

@@ -1,11 +1,12 @@
 import datetime as dt
-import os
 import threading
 
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
+from trading.health_service import celery_available
 
 from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings
 from .serializers import (
@@ -69,24 +70,12 @@ def bot_settings(request):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-def _celery_available() -> bool:
-    """Return True if Redis broker is reachable for Celery."""
-    if os.environ.get('USE_CELERY', 'true').lower() == 'false':
-        return False
-    try:
-        from trademaster_project.celery import app as celery_app
-        celery_app.connection().ensure_connection(max_retries=1)
-        return True
-    except Exception:
-        return False
-
-
 @api_view(['POST'])
 def bot_start(request):
     if BotSession.objects.filter(status='running').exists():
         return Response({'error': 'Bot is already running'}, status=status.HTTP_400_BAD_REQUEST)
 
-    if _celery_available():
+    if celery_available():
         try:
             from .tasks import run_trade_task
             result = run_trade_task.delay()
@@ -264,3 +253,13 @@ def pnl_sync(request):
 def sessions(request):
     all_sessions = BotSession.objects.all()[:20]
     return Response(BotSessionSerializer(all_sessions, many=True).data)
+
+
+# ─── System health ────────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+def system_health(request):
+    from trading.health_service import get_system_health
+
+    probe = request.query_params.get('probe') == '1'
+    return Response(get_system_health(probe=probe))

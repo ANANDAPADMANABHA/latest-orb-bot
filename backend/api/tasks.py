@@ -20,6 +20,19 @@ def request_bot_stop() -> None:
     _local_stop.set()
 
 
+def touch_bot_heartbeat(session_id: int | None = None) -> None:
+    """Update last_heartbeat_at on the active bot session."""
+    from api.models import BotSession
+
+    qs = BotSession.objects.filter(status='running')
+    if session_id:
+        qs = qs.filter(pk=session_id)
+    session = qs.order_by('-started_at').first()
+    if session:
+        session.last_heartbeat_at = timezone.now()
+        session.save(update_fields=['last_heartbeat_at'])
+
+
 def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
     """Core bot run logic (used by Celery and local thread fallback)."""
     from api.models import BotSession, WatchlistTicker
@@ -34,12 +47,16 @@ def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
         session = BotSession.objects.create(status='running', task_id=task_id)
 
     clear_bot_stop_flag()
+    touch_bot_heartbeat(session.id)
     try:
         db_tickers = list(
             WatchlistTicker.objects.filter(is_active=True).values_list('symbol', flat=True)
         )
         bot = TradeMaster()
-        bot.make_some_money(tickers=db_tickers if db_tickers else None)
+        bot.make_some_money(
+            tickers=db_tickers if db_tickers else None,
+            session_id=session.id,
+        )
 
         from trading.pnl_service import sync_pnl_records
         sync_pnl_records(bot, replace_today=True)

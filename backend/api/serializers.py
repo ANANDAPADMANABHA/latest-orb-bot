@@ -23,7 +23,7 @@ class BotSessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BotSession
-        fields = ['id', 'started_at', 'stopped_at', 'status', 'task_id', 'log', 'trades']
+        fields = ['id', 'started_at', 'stopped_at', 'status', 'task_id', 'log', 'last_heartbeat_at', 'trades']
 
 
 class PnLRecordSerializer(serializers.ModelSerializer):

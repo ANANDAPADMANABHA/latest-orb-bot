@@ -45,3 +45,7 @@ export const getPnLSummary = () => api.get('/pnl/summary/');
 
 // Sessions
 export const getSessions = () => api.get('/sessions/');
+
+// System health
+export const getSystemHealth = (probe = false) =>
+  api.get('/health/', { params: probe ? { probe: 1 } : {} });

@@ -18,6 +18,7 @@ echo ""
 echo "==> Checking API endpoints..."
 curl -sf "${BASE_URL}/api/bot/status/" | head -c 200 && echo "" || echo "  FAIL /api/bot/status/"
 curl -sf "${BASE_URL}/api/watchlist/" | head -c 200 && echo "" || echo "  FAIL /api/watchlist/"
+curl -sf "${BASE_URL}/api/health/" | head -c 400 && echo "" || echo "  FAIL /api/health/"
 
 echo ""
 echo "==> Checking frontend..."
