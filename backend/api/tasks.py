@@ -20,22 +20,10 @@ def request_bot_stop() -> None:
     _local_stop.set()
 
 
-def touch_bot_heartbeat(session_id: int | None = None) -> None:
-    """Update last_heartbeat_at on the active bot session."""
-    from api.models import BotSession
-
-    qs = BotSession.objects.filter(status='running')
-    if session_id:
-        qs = qs.filter(pk=session_id)
-    session = qs.order_by('-started_at').first()
-    if session:
-        session.last_heartbeat_at = timezone.now()
-        session.save(update_fields=['last_heartbeat_at'])
-
-
 def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
     """Core bot run logic (used by Celery and local thread fallback)."""
     from api.models import BotSession, WatchlistTicker
+    from trading.bot_heartbeat import touch_bot_heartbeat
     from trading.trading_bot import TradeMaster
 
     if session_id:

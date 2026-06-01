@@ -52,7 +52,7 @@ class TradeMaster(OpeningRangeBreakout):
                 print('Bot stop requested — exiting loop.')
                 break
             print(f'Loop pass at {dt.datetime.now(IST).strftime("%H:%M:%S")}')
-            from api.tasks import touch_bot_heartbeat
+            from trading.bot_heartbeat import touch_bot_heartbeat
             touch_bot_heartbeat(session_id)
             positions_data = self.get_positions()
             positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
