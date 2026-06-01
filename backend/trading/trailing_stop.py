@@ -59,16 +59,8 @@ def update_trailing_stops(client, positions: pd.DataFrame, instrument_list, exch
 
     for mp in managed:
         if mp.symbol.upper() not in active_symbols:
-            tradingsymbol = f'{mp.symbol.upper()}-EQ'
-            result = client.cancel_orders_for_symbol(tradingsymbol)
-            if result['cancelled_orders']:
-                print(
-                    f"Cancelled pending orders for {mp.symbol}: "
-                    f"{result['cancelled_orders']}"
-                )
-            mp.is_active = False
-            mp.save(update_fields=['is_active'])
-            print(f"Trailing position closed: {mp.symbol}")
+            # Do not cancel bracket legs here — cancel_orphan_exit_orders reconciles
+            # one leg when the other fills; blanket cancel broke open positions.
             continue
 
         if not trail_sl:

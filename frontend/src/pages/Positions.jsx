@@ -1,11 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { getBrokerLive, exitPosition, cleanupOrphanOrders } from '../api/client';
 import './Positions.css';
-
-function equityBase(symbol) {
-  const s = String(symbol || '').toUpperCase().trim();
-  return s.endsWith('-EQ') ? s.slice(0, -3) : s;
-}
 
 function positionQty(p) {
   const net = p.netqty ?? p.netQty;
@@ -18,25 +13,6 @@ function positionQty(p) {
   return buy - sell;
 }
 
-function isPendingOrder(o) {
-  const statuses = [
-    o.status,
-    o.orderstatus,
-    o.orderStatus,
-  ].map((s) => String(s || '').toLowerCase().trim()).filter(Boolean);
-  const terminal = ['complete', 'completed', 'cancelled', 'canceled', 'rejected', 'expired'];
-  for (const status of statuses) {
-    if (terminal.includes(status)) continue;
-    if (status === 'open' || status.includes('pending')) return true;
-    if (status) return true;
-  }
-  const unfilled = parseInt(Number(o.unfilledshares || o.unfilledqty || 0), 10);
-  if (unfilled > 0) return true;
-  const qty = parseInt(Number(o.quantity || 0), 10);
-  const filled = parseInt(Number(o.filledshares || o.filledquantity || 0), 10);
-  return qty > filled;
-}
-
 export default function Positions() {
   const [positions, setPositions] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -46,7 +22,6 @@ export default function Positions() {
   const [success, setSuccess] = useState('');
   const [exitingSymbol, setExitingSymbol] = useState(null);
   const [cleaningOrphans, setCleaningOrphans] = useState(false);
-  const autoCleanupDone = useRef(false);
 
   const reload = async () => {
     setPosLoading(true);
@@ -134,21 +109,6 @@ export default function Positions() {
 
   const totalPnl = positions.reduce((s, p) => s + parseFloat(p.pnl || 0), 0);
   const openPositions = positions.filter((p) => positionQty(p) !== 0);
-
-  useEffect(() => {
-    if (posLoading || ordLoading || autoCleanupDone.current || orders.length === 0) return;
-    const openBases = new Set(
-      positions.filter((p) => positionQty(p) !== 0).map((p) => equityBase(p.tradingsymbol))
-    );
-    const stale = orders.filter((o) => {
-      if (!isPendingOrder(o)) return false;
-      return !openBases.has(equityBase(o.tradingsymbol));
-    });
-    if (stale.length === 0) return;
-    autoCleanupDone.current = true;
-    const symbols = [...new Set(stale.map((o) => equityBase(o.tradingsymbol)))];
-    handleCleanupOrphans(symbols);
-  }, [posLoading, ordLoading, positions, orders]);
 
   return (
     <div className="positions-page">

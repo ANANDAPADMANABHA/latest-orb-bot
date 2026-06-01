@@ -28,7 +28,7 @@ def broker_live(request):
 
 @api_view(['POST'])
 def cleanup_orphan_orders(request):
-    """Cancel pending SL/target orders for symbols with no open position."""
+    """Cancel orphan exit orders for flat symbols; managed open trades stay protected."""
     try:
         client = get_angel_client()
         positions_data = client.get_positions()

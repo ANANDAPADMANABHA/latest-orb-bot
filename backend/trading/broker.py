@@ -531,6 +531,20 @@ class AngelOneClient:
                 open_bases.add(equity_base_symbol(sym))
         return open_bases
 
+    @staticmethod
+    def _managed_position_bases() -> set:
+        """Symbols with bot-managed bracket legs — protect from blanket orphan cancel."""
+        from api.models import ManagedPosition
+
+        return {
+            mp.symbol.upper()
+            for mp in ManagedPosition.objects.filter(is_active=True)
+        }
+
+    def _protected_position_bases(self, positions: pd.DataFrame) -> set:
+        """Open broker positions plus active managed trades (covers position-book lag)."""
+        return self._open_position_bases(positions) | self._managed_position_bases()
+
     def _cancel_single_order(self, order: dict) -> tuple[bool, str | None]:
         from trading.order_utils import order_id_from_order, order_variety
 
@@ -561,6 +575,56 @@ class AngelOneClient:
                 last_error = str(e)
         return False, last_error
 
+    def _cancel_order_if_pending(self, order: Optional[dict], summary: dict) -> None:
+        from trading.order_utils import order_id_from_order
+
+        if not order or not self._is_cancellable_order(order):
+            return
+        oid = order_id_from_order(order)
+        if not oid:
+            summary['errors'].append({'order_id': None, 'error': 'missing order id'})
+            return
+        ok, err = self._cancel_single_order(order)
+        if ok:
+            summary['cancelled'].append(str(oid))
+            print(f'Cancelled pending exit leg {oid}')
+        elif err:
+            summary['errors'].append({'order_id': str(oid), 'error': err})
+
+    def _reconcile_managed_exit_legs(
+        self, positions: pd.DataFrame, summary: dict
+    ) -> None:
+        """
+        When SL or target fills, cancel only the other pending leg.
+        Deactivate managed row when broker position is flat and a leg has filled.
+        """
+        from api.models import ManagedPosition
+        from trading.order_utils import is_filled_order
+
+        open_bases = self._open_position_bases(positions)
+
+        for mp in ManagedPosition.objects.filter(is_active=True):
+            base = mp.symbol.upper()
+            sl_order = self._find_order_by_id(mp.sl_order_id) if mp.sl_order_id else None
+            tgt_order = (
+                self._find_order_by_id(mp.target_order_id) if mp.target_order_id else None
+            )
+            sl_filled = bool(sl_order and is_filled_order(sl_order))
+            tgt_filled = bool(tgt_order and is_filled_order(tgt_order))
+
+            if sl_filled:
+                self._cancel_order_if_pending(tgt_order, summary)
+            if tgt_filled:
+                self._cancel_order_if_pending(sl_order, summary)
+
+            if base in open_bases:
+                continue
+
+            if sl_filled or tgt_filled:
+                mp.is_active = False
+                mp.save(update_fields=['is_active'])
+                print(f'Managed position closed ({base}): exit leg filled')
+
     def cancel_orphan_exit_orders(
         self,
         positions: pd.DataFrame,
@@ -569,6 +633,7 @@ class AngelOneClient:
         """
         Cancel pending SL/target orders when the position is flat.
         Bracket legs are separate orders — Angel One does not auto-cancel the other leg.
+        Active managed symbols are always protected from blanket cancel.
         """
         from trading.order_utils import (
             is_pending_order,
@@ -578,19 +643,22 @@ class AngelOneClient:
         )
         from trading.position_utils import equity_base_symbol, normalize_tradingsymbol
 
-        force_bases = {
+        scope_bases = {
             equity_base_symbol(s) for s in (force_symbols or []) if str(s).strip()
         }
         open_bases = self._open_position_bases(positions)
+        protected_bases = self._protected_position_bases(positions)
         order_book = self.get_order_book()
 
         summary = {
             'cancelled': [],
             'errors': [],
-            'skipped_open_position': [f'{b}-EQ' for b in sorted(open_bases)],
+            'skipped_open_position': [f'{b}-EQ' for b in sorted(protected_bases)],
             'pending_found': [],
             'order_book_count': len(order_book),
         }
+
+        self._reconcile_managed_exit_legs(positions, summary)
 
         for order in order_book:
             if not is_pending_order(order):
@@ -617,7 +685,10 @@ class AngelOneClient:
                 'variety': order.get('variety'),
             })
 
-            if base in open_bases and base not in force_bases:
+            if scope_bases and base not in scope_bases:
+                continue
+
+            if base in protected_bases:
                 continue
 
             if not oid:
@@ -627,45 +698,17 @@ class AngelOneClient:
             ok, err = self._cancel_single_order(order)
             if ok:
                 summary['cancelled'].append(str(oid))
-                print(f'Cancelled pending order {oid} for {sym}')
+                print(f'Cancelled orphan pending order {oid} for {sym}')
             elif err:
                 summary['errors'].append({'order_id': str(oid), 'error': err})
 
-        self._cancel_managed_exit_legs_for_flat_positions(positions, summary)
-
         print(
             f'Orphan order scan: book={len(order_book)} pending={len(summary["pending_found"])} '
-            f'open_bases={sorted(open_bases)} force={sorted(force_bases)} '
+            f'open_bases={sorted(open_bases)} protected={sorted(protected_bases)} '
+            f'scope={sorted(scope_bases) if scope_bases else "all"} '
             f'cancelled={summary["cancelled"]} errors={summary["errors"]}'
         )
         return summary
-
-    def _cancel_managed_exit_legs_for_flat_positions(
-        self, positions: pd.DataFrame, summary: dict
-    ) -> None:
-        from api.models import ManagedPosition
-
-        open_bases = self._open_position_bases(positions)
-
-        for mp in ManagedPosition.objects.filter(is_active=True):
-            if mp.symbol.upper() in open_bases:
-                continue
-            from trading.position_utils import normalize_tradingsymbol
-
-            tradingsymbol = normalize_tradingsymbol(mp.symbol)
-            for order_id in (mp.target_order_id, mp.sl_order_id):
-                if not order_id:
-                    continue
-                order = self._find_order_by_id(order_id)
-                if order and self._is_cancellable_order(order):
-                    ok, err = self._cancel_single_order(order)
-                    if ok:
-                        summary['cancelled'].append(str(order_id))
-                        print(f'Cancelled managed leg {order_id} for {mp.symbol}')
-                    elif err:
-                        summary['errors'].append({'order_id': str(order_id), 'error': err})
-            mp.is_active = False
-            mp.save(update_fields=['is_active'])
 
     def _find_order_by_id(self, order_id: str) -> Optional[dict]:
         oid = str(order_id).strip()

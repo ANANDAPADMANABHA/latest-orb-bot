@@ -7,6 +7,10 @@ TERMINAL_ORDER_STATUSES = frozenset({
     'cancel', 'cancelled after market order',
 })
 
+FILLED_ORDER_STATUSES = frozenset({
+    'complete', 'completed', 'executed', 'fully executed', 'trade confirmed',
+})
+
 PENDING_ORDER_STATUSES = frozenset({
     'open',
     'trigger pending',
@@ -69,6 +73,21 @@ def unfilled_order_qty(order: dict) -> int:
     except (TypeError, ValueError):
         pass
     return 0
+
+
+def is_filled_order(order: dict) -> bool:
+    """True when the order has executed (target/SL hit)."""
+    statuses = order_status_values(order)
+    if any(s in FILLED_ORDER_STATUSES for s in statuses):
+        return True
+    try:
+        total = int(float(_field(order, 'quantity', 'Quantity') or 0))
+        filled = int(float(
+            _field(order, 'filledshares', 'filledquantity', 'FilledShares') or 0
+        ))
+        return total > 0 and filled >= total
+    except (TypeError, ValueError):
+        return False
 
 
 def is_pending_order(order: dict) -> bool:
