@@ -56,8 +56,19 @@ class TradeMaster(OpeningRangeBreakout):
             touch_bot_heartbeat(session_id)
             positions_data = self.get_positions()
             positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
+            try:
+                self.cancel_orphan_exit_orders(positions)
+            except Exception as exc:
+                print(f'Orphan order cleanup failed: {exc}')
             open_orders = self.get_open_orders()
             self.orb_strat(list(hi_lo_prices.keys()), hi_lo_prices, positions, open_orders)
+            # SL/target may fill during orb_strat; cancel leftover legs immediately.
+            try:
+                positions_data = self.get_positions()
+                positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
+                self.cancel_orphan_exit_orders(positions)
+            except Exception as exc:
+                print(f'Post-strategy orphan cleanup failed: {exc}')
             time.sleep(300 - ((time.time() - starttime) % 300.0))
 
         trades = self.log_pnl()

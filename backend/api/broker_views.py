@@ -1,3 +1,4 @@
+import pandas as pd
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -17,6 +18,27 @@ def broker_live(request):
         return Response({
             'positions': client.get_positions(),
             'orders': client.get_order_book(),
+        })
+    except Exception as e:
+        return Response(
+            {'error': format_broker_error(e)},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+
+@api_view(['POST'])
+def cleanup_orphan_orders(request):
+    """Cancel pending SL/target orders for symbols with no open position."""
+    try:
+        client = get_angel_client()
+        positions_data = client.get_positions()
+        positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
+        summary = client.cancel_orphan_exit_orders(positions)
+        return Response({
+            'message': 'Orphan order cleanup finished',
+            'cancelled_order_ids': summary.get('cancelled', []),
+            'errors': summary.get('errors', []),
+            'skipped_open_position': summary.get('skipped_open_position', []),
         })
     except Exception as e:
         return Response(

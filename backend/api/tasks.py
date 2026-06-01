@@ -65,6 +65,32 @@ def run_trade_task(self):
     execute_trade_bot(task_id=self.request.id or '')
 
 
+@shared_task
+def cleanup_orphan_orders_periodic() -> None:
+    """Cancel pending exit orders for flat symbols (runs even if bot UI is idle)."""
+    import datetime as dt
+
+    import pandas as pd
+    import pytz
+
+    IST = pytz.timezone('Asia/Calcutta')
+    now = dt.datetime.now(IST)
+    if now.weekday() >= 5:
+        return
+    if not (dt.time(9, 15) <= now.time() <= dt.time(15, 35)):
+        return
+
+    try:
+        from trading.broker_cache import get_angel_client
+
+        client = get_angel_client()
+        positions_data = client.get_positions()
+        positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
+        client.cancel_orphan_exit_orders(positions)
+    except Exception as exc:
+        print(f'Periodic orphan cleanup failed: {exc}')
+
+
 def run_trade_bot_in_thread(session_id: int) -> None:
     """Background thread entrypoint for local dev without Redis."""
     execute_trade_bot(task_id='local-thread', session_id=session_id)

@@ -29,6 +29,7 @@ urlpatterns = [
     path('broker/live/', broker_views.broker_live, name='broker-live'),
     path('positions/', views.positions, name='positions'),
     path('positions/exit/', broker_views.exit_position_view, name='positions-exit'),
+    path('orders/cleanup-orphans/', broker_views.cleanup_orphan_orders, name='orders-cleanup-orphans'),
     path('orders/', views.orders, name='orders'),
     path('capital/', views.capital, name='capital'),
 

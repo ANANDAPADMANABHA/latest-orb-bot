@@ -61,8 +61,7 @@ class OpeningRangeBreakout(AngelOneClient):
         color = Colors.GREEN if side == 'BUY' else Colors.RED
         print(f"{color}{side} {quantity} x {ticker} SL={sl} TGT={tgt}{Colors.RESET}")
 
-        if sl_strategy == STRATEGY_TRAILING:
-            self._record_trailing_position(ticker, side, quantity, ltp, sl, order_ids)
+        self._record_trailing_position(ticker, side, quantity, ltp, sl, order_ids)
 
     def orb_strat(
         self,
@@ -74,6 +73,10 @@ class OpeningRangeBreakout(AngelOneClient):
     ) -> None:
         IST = pytz.timezone("Asia/Kolkata")
         now_ist = dt.datetime.now(IST)
+
+        # Run first — must not depend on capital fetch or broker errors later in the loop
+        self.cancel_orphan_exit_orders(positions)
+
         capital = self.get_trade_capital()
         print(f'Current capital: {capital} Rs')
 
@@ -86,15 +89,20 @@ class OpeningRangeBreakout(AngelOneClient):
         print(f'Risk per trade: {bot_settings.risk_percent}%')
         print(f'Max capital per trade: {usage_pct}%')
 
-        self.cancel_orphan_exit_orders(positions)
         update_trailing_stops(self, positions, self.instrument_list, exchange)
 
-        active_tickers = list(tickers)
+        from trading.position_utils import equity_base_symbol, net_position_qty, position_tradingsymbol
+
+        open_bases = set()
         if not positions.empty:
-            active_tickers = [
-                i for i in active_tickers
-                if i + "-EQ" not in positions["tradingsymbol"].to_list()
-            ]
+            for _, row in positions.iterrows():
+                if net_position_qty(row) == 0:
+                    continue
+                sym = position_tradingsymbol(row)
+                if sym:
+                    open_bases.add(equity_base_symbol(sym))
+
+        active_tickers = [i for i in tickers if i.upper() not in open_bases]
         if open_orders is not None and not open_orders.empty:
             active_tickers = [
                 i for i in active_tickers

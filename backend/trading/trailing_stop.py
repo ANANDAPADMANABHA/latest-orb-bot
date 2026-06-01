@@ -11,19 +11,17 @@ from trading.utils import token_lookup, Colors
 
 
 def _open_position_symbols(positions: pd.DataFrame) -> Set[str]:
+    from trading.position_utils import net_position_qty, position_tradingsymbol
+
     if positions.empty:
         return set()
     symbols = set()
     for _, row in positions.iterrows():
-        netqty = row.get('netqty') or row.get('quantity') or 0
-        try:
-            if int(float(netqty)) == 0:
-                continue
-        except (TypeError, ValueError):
+        if net_position_qty(row) == 0:
             continue
-        sym = row.get('symbolname') or row.get('tradingsymbol', '')
+        sym = position_tradingsymbol(row)
         if sym:
-            symbols.add(str(sym).replace('-EQ', '').upper())
+            symbols.add(sym.replace('-EQ', '').upper())
     return symbols
 
 
@@ -51,8 +49,13 @@ def _fetch_prev_candle(client, ticker: str, instrument_list, exchange: str):
 
 def update_trailing_stops(client, positions: pd.DataFrame, instrument_list, exchange: str = 'NSE') -> None:
     """Adjust SL orders for active trailing positions each bot loop."""
+    from api.models import BotSettings
+    from trading.sl_target import STRATEGY_TRAILING
+
     active_symbols = _open_position_symbols(positions)
     managed = ManagedPosition.objects.filter(is_active=True)
+    settings = BotSettings.get_singleton()
+    trail_sl = settings.stop_loss_strategy == STRATEGY_TRAILING
 
     for mp in managed:
         if mp.symbol.upper() not in active_symbols:
@@ -66,6 +69,9 @@ def update_trailing_stops(client, positions: pd.DataFrame, instrument_list, exch
             mp.is_active = False
             mp.save(update_fields=['is_active'])
             print(f"Trailing position closed: {mp.symbol}")
+            continue
+
+        if not trail_sl:
             continue
 
         time.sleep(0.4)

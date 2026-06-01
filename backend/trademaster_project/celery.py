@@ -13,4 +13,8 @@ app.conf.beat_schedule = {
         'task': 'api.tasks.run_trade_task',
         'schedule': crontab(hour=9, minute=20, day_of_week='mon-fri'),
     },
+    'cleanup-orphan-orders-every-2-min': {
+        'task': 'api.tasks.cleanup_orphan_orders_periodic',
+        'schedule': 120.0,
+    },
 }

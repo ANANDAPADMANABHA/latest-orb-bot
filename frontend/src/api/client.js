@@ -69,6 +69,7 @@ export const stopBot = () => api.post('/bot/stop/');
 export const getBrokerLive = () => api.get('/broker/live/');
 export const exitPosition = (tradingsymbol) =>
   api.post('/positions/exit/', { tradingsymbol });
+export const cleanupOrphanOrders = () => api.post('/orders/cleanup-orphans/');
 export const getPositions = () => api.get('/positions/');
 export const getOrders = () => api.get('/orders/');
 export const getCapital = () => api.get('/capital/');
