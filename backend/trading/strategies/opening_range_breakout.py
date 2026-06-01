@@ -86,6 +86,7 @@ class OpeningRangeBreakout(AngelOneClient):
         print(f'Risk per trade: {bot_settings.risk_percent}%')
         print(f'Max capital per trade: {usage_pct}%')
 
+        self.cancel_orphan_exit_orders(positions)
         update_trailing_stops(self, positions, self.instrument_list, exchange)
 
         active_tickers = list(tickers)

@@ -497,6 +497,50 @@ class AngelOneClient:
         'open', 'trigger pending', 'amo', 'pending', 'validation pending',
     })
 
+    @staticmethod
+    def _symbols_with_open_positions(positions: pd.DataFrame) -> set:
+        """Tradingsymbols (e.g. TATASTEEL-EQ) with non-zero net quantity."""
+        open_symbols: set = set()
+        if positions.empty:
+            return open_symbols
+        for _, row in positions.iterrows():
+            try:
+                netqty = int(float(row.get('netqty') or row.get('quantity') or 0))
+            except (TypeError, ValueError):
+                continue
+            if netqty == 0:
+                continue
+            sym = str(row.get('tradingsymbol', '')).upper().strip()
+            if sym:
+                open_symbols.add(sym)
+        return open_symbols
+
+    def cancel_orphan_exit_orders(self, positions: pd.DataFrame) -> None:
+        """
+        Cancel pending SL/target orders when the position is flat.
+        Bracket legs are separate orders — Angel One does not auto-cancel the other leg.
+        """
+        open_symbols = self._symbols_with_open_positions(positions)
+
+        pending_symbols: set = set()
+        for order in self.get_order_book():
+            sym = str(order.get('tradingsymbol', '')).upper().strip()
+            status = str(order.get('orderstatus', '')).lower().strip()
+            if sym and status in self._PENDING_ORDER_STATUSES:
+                pending_symbols.add(sym)
+
+        for sym in pending_symbols:
+            if sym in open_symbols:
+                continue
+            result = self.cancel_orders_for_symbol(sym)
+            if result['cancelled_orders']:
+                print(
+                    f'Cancelled orphan exit orders for {sym}: '
+                    f'{result["cancelled_orders"]}'
+                )
+            if result['cancel_errors']:
+                print(f'Cancel errors for {sym}: {result["cancel_errors"]}')
+
     def cancel_orders_for_symbol(self, tradingsymbol: str) -> dict:
         """Cancel open/pending orders for a symbol. Returns cancelled ids and errors."""
         symbol_key = tradingsymbol.upper().strip()
