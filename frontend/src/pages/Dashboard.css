@@ -35,44 +35,6 @@
   flex-wrap: wrap;
 }
 
-.orb-section {
-  padding: 1.25rem;
-}
-
-.orb-section-header {
-  margin-bottom: 0.75rem;
-}
-
-.orb-section-sub {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  margin-top: 0.35rem;
-  max-width: 52rem;
-  line-height: 1.45;
-}
-
-.orb-section-updated {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin-bottom: 0.75rem;
-}
-
-.orb-section-error {
-  padding: 0.65rem 0.85rem;
-  margin-bottom: 0.75rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--red);
-  background: rgba(239, 68, 68, 0.1);
-  color: var(--red);
-  font-size: 0.85rem;
-}
-
-.orb-gauge-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
-}
-
 .empty-state {
   color: var(--text-muted);
   font-size: 0.88rem;
@@ -95,13 +57,6 @@
     gap: 0.75rem;
   }
 
-  .orb-gauge-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .orb-section {
-    padding: 1rem;
-  }
 }
 
 @media (max-width: 400px) {

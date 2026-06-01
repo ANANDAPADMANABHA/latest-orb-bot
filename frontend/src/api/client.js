@@ -52,12 +52,6 @@ export const getWatchlistCharts = (forceRefresh = false) =>
     params: forceRefresh ? { refresh: 1 } : {},
   });
 
-// Dashboard ORB gauge (ORB high/low + last price, no candles)
-export const getOrbWatchlist = (forceRefresh = false) =>
-  api.get('/orb/watchlist/', {
-    params: forceRefresh ? { refresh: 1 } : {},
-  });
-
 // Bot control
 export const getBotStatus = () => api.get('/bot/status/');
 export const getBotSettings = () => api.get('/bot/settings/');
