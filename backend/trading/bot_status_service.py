@@ -85,14 +85,19 @@ def get_active_bot_session():
             _repair_session_running(session)
             return session
 
-    running = BotSession.objects.filter(status='running').order_by('-started_at').first()
-    if running and session_is_alive(running, now):
-        return running
-    if running and not session_is_alive(running, now):
+    running_qs = BotSession.objects.filter(status='running').order_by('-started_at')
+    alive_running = None
+    for running in running_qs:
+        if session_is_alive(running, now):
+            if alive_running is None:
+                alive_running = running
+            continue
         running.status = 'stopped'
         running.stopped_at = now
         running.log = (running.log or '') + '\nHeartbeat timeout.'
         running.save(update_fields=['status', 'stopped_at', 'log'])
+    if alive_running:
+        return alive_running
 
     recent = (
         BotSession.objects.filter(last_heartbeat_at__isnull=False)

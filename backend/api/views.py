@@ -48,8 +48,13 @@ def watchlist_detail(request, pk):
 
 @api_view(['GET'])
 def bot_status(request):
-    from trading.bot_status_service import get_active_bot_session, session_is_alive
+    from trading.bot_status_service import (
+        clear_stale_running_sessions,
+        get_active_bot_session,
+        session_is_alive,
+    )
 
+    clear_stale_running_sessions()
     active = get_active_bot_session()
     last = BotSession.objects.order_by('-started_at').first()
     settings = BotSettings.get_singleton()
@@ -288,6 +293,9 @@ def pnl_sync(request):
 
 @api_view(['GET'])
 def sessions(request):
+    from trading.bot_status_service import clear_stale_running_sessions
+
+    clear_stale_running_sessions()
     all_sessions = BotSession.objects.all()[:20]
     return Response(BotSessionSerializer(all_sessions, many=True).data)
 
