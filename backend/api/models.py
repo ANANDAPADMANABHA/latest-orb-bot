@@ -138,3 +138,6 @@ class PnLRecord(models.Model):
 
     class Meta:
         ordering = ['-date', 'symbol']
+        constraints = [
+            models.UniqueConstraint(fields=['date', 'symbol'], name='uniq_pnl_date_symbol'),
+        ]
