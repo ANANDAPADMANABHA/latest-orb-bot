@@ -33,12 +33,20 @@ def cleanup_orphan_orders(request):
         client = get_angel_client()
         positions_data = client.get_positions()
         positions = pd.DataFrame(positions_data) if positions_data else pd.DataFrame()
-        summary = client.cancel_orphan_exit_orders(positions)
+        force_symbols = request.data.get('symbols') or request.data.get('force_symbols')
+        if isinstance(force_symbols, str):
+            force_symbols = [s.strip() for s in force_symbols.split(',') if s.strip()]
+        summary = client.cancel_orphan_exit_orders(
+            positions,
+            force_symbols=force_symbols,
+        )
         return Response({
             'message': 'Orphan order cleanup finished',
             'cancelled_order_ids': summary.get('cancelled', []),
             'errors': summary.get('errors', []),
             'skipped_open_position': summary.get('skipped_open_position', []),
+            'pending_found': summary.get('pending_found', []),
+            'order_book_count': summary.get('order_book_count', 0),
         })
     except Exception as e:
         return Response(

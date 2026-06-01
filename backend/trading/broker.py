@@ -488,46 +488,32 @@ class AngelOneClient:
     def get_order_book(self) -> List[Dict]:
         try:
             response = self.smart_api.orderBook()
-            return response.get("data", []) or []
+            if not isinstance(response, dict):
+                print(f'orderBook unexpected response type: {type(response)}')
+                return []
+            api_status = response.get('status')
+            if api_status not in (True, 'success', 'SUCCESS'):
+                print(
+                    f"orderBook API error: {response.get('message')} "
+                    f"({response.get('errorcode', '')})"
+                )
+                return []
+            data = response.get('data')
+            if isinstance(data, list):
+                return data
+            if data in (None, '', []):
+                return []
+            print(f'orderBook unexpected data: {type(data)}')
+            return []
         except Exception as e:
             print(f"Error fetching order book: {e}")
             return []
 
-    _TERMINAL_ORDER_STATUSES = frozenset({
-        'complete', 'completed', 'cancelled', 'canceled', 'rejected', 'expired',
-    })
-
     @staticmethod
-    def _order_status(order: dict) -> str:
-        raw = (
-            order.get('orderstatus')
-            or order.get('orderStatus')
-            or order.get('status')
-            or ''
-        )
-        return str(raw).lower().strip()
+    def _is_cancellable_order(order: dict) -> bool:
+        from trading.order_utils import is_pending_order
 
-    @classmethod
-    def _is_cancellable_order(cls, order: dict) -> bool:
-        status = cls._order_status(order)
-        if status in cls._TERMINAL_ORDER_STATUSES:
-            return False
-        if status:
-            return True
-        # Some order-book rows omit status; use unfilled quantity when present.
-        try:
-            qty = int(float(order.get('quantity') or order.get('Quantity') or 0))
-            filled = int(float(
-                order.get('filledshares')
-                or order.get('filledquantity')
-                or order.get('FilledShares')
-                or 0
-            ))
-            if qty > filled:
-                return True
-        except (TypeError, ValueError):
-            pass
-        return False
+        return is_pending_order(order)
 
     @staticmethod
     def _open_position_bases(positions: pd.DataFrame) -> set:
@@ -546,20 +532,24 @@ class AngelOneClient:
         return open_bases
 
     def _cancel_single_order(self, order: dict) -> tuple[bool, str | None]:
-        order_id = order.get('orderid') or order.get('orderId')
+        from trading.order_utils import order_id_from_order, order_variety
+
+        order_id = order_id_from_order(order)
         if not order_id:
             return False, 'missing order id'
-        variety = (order.get('variety') or 'NORMAL').strip()
-        varieties = [variety]
-        if variety.upper() != 'NORMAL':
-            varieties.append('NORMAL')
-        if variety.upper() != 'STOPLOSS':
-            varieties.append('STOPLOSS')
+
+        varieties: list[str] = []
+        primary = order_variety(order)
+        if primary:
+            varieties.append(primary)
+        for extra in ('NORMAL', 'STOPLOSS', 'ROBO', 'AMO'):
+            if extra not in varieties:
+                varieties.append(extra)
 
         last_error = None
         for var in varieties:
             try:
-                response = self.smart_api.cancelOrder(str(order_id), var)
+                response = self.smart_api.cancelOrder(order_id, var)
                 if isinstance(response, dict):
                     if response.get('status') is True:
                         return True, None
@@ -571,57 +561,83 @@ class AngelOneClient:
                 last_error = str(e)
         return False, last_error
 
-    def cancel_orphan_exit_orders(self, positions: pd.DataFrame) -> dict:
+    def cancel_orphan_exit_orders(
+        self,
+        positions: pd.DataFrame,
+        force_symbols: Optional[List[str]] = None,
+    ) -> dict:
         """
         Cancel pending SL/target orders when the position is flat.
         Bracket legs are separate orders — Angel One does not auto-cancel the other leg.
         """
+        from trading.order_utils import (
+            is_pending_order,
+            order_id_from_order,
+            order_status_values,
+            unfilled_order_qty,
+        )
         from trading.position_utils import equity_base_symbol, normalize_tradingsymbol
 
+        force_bases = {
+            equity_base_symbol(s) for s in (force_symbols or []) if str(s).strip()
+        }
         open_bases = self._open_position_bases(positions)
         order_book = self.get_order_book()
 
-        flat_with_pending: set = set()
+        summary = {
+            'cancelled': [],
+            'errors': [],
+            'skipped_open_position': [f'{b}-EQ' for b in sorted(open_bases)],
+            'pending_found': [],
+            'order_book_count': len(order_book),
+        }
+
         for order in order_book:
-            if not self._is_cancellable_order(order):
+            if not is_pending_order(order):
                 continue
             raw_sym = (
                 order.get('tradingsymbol')
                 or order.get('tradingSymbol')
+                or order.get('symbol')
                 or ''
             )
             sym = normalize_tradingsymbol(str(raw_sym))
             if not sym:
                 continue
             base = equity_base_symbol(sym)
-            if base in open_bases:
+            oid = order_id_from_order(order)
+
+            summary['pending_found'].append({
+                'order_id': oid,
+                'tradingsymbol': sym,
+                'status': order.get('status'),
+                'orderstatus': order.get('orderstatus'),
+                'unfilled': unfilled_order_qty(order),
+                'statuses': order_status_values(order),
+                'variety': order.get('variety'),
+            })
+
+            if base in open_bases and base not in force_bases:
                 continue
-            flat_with_pending.add(sym)
 
-        summary = {'cancelled': [], 'errors': [], 'skipped_open_position': []}
-        for base in sorted(open_bases):
-            summary['skipped_open_position'].append(f'{base}-EQ')
+            if not oid:
+                summary['errors'].append({'order_id': None, 'error': 'missing order id'})
+                continue
 
-        for sym in sorted(flat_with_pending):
-            result = self.cancel_orders_for_symbol(sym)
-            summary['cancelled'].extend(result['cancelled_orders'])
-            summary['errors'].extend(result['cancel_errors'])
-            if result['cancelled_orders']:
-                print(
-                    f'Cancelled orphan exit orders for {sym}: '
-                    f'{result["cancelled_orders"]}'
-                )
-            if result['cancel_errors']:
-                print(f'Cancel errors for {sym}: {result["cancel_errors"]}')
+            ok, err = self._cancel_single_order(order)
+            if ok:
+                summary['cancelled'].append(str(oid))
+                print(f'Cancelled pending order {oid} for {sym}')
+            elif err:
+                summary['errors'].append({'order_id': str(oid), 'error': err})
 
         self._cancel_managed_exit_legs_for_flat_positions(positions, summary)
 
-        if flat_with_pending or summary['cancelled'] or summary['errors']:
-            print(
-                f'Orphan order scan: open_bases={sorted(open_bases)} '
-                f'flat_pending={sorted(flat_with_pending)} '
-                f'cancelled={summary["cancelled"]} errors={summary["errors"]}'
-            )
+        print(
+            f'Orphan order scan: book={len(order_book)} pending={len(summary["pending_found"])} '
+            f'open_bases={sorted(open_bases)} force={sorted(force_bases)} '
+            f'cancelled={summary["cancelled"]} errors={summary["errors"]}'
+        )
         return summary
 
     def _cancel_managed_exit_legs_for_flat_positions(
@@ -667,15 +683,20 @@ class AngelOneClient:
         cancelled = []
         errors = []
 
+        from trading.order_utils import order_id_from_order
+
         for order in self.get_order_book():
             order_sym = str(
-                order.get('tradingsymbol') or order.get('tradingSymbol') or ''
+                order.get('tradingsymbol')
+                or order.get('tradingSymbol')
+                or order.get('symbol')
+                or ''
             )
             if not symbols_match(order_sym, symbol_key):
                 continue
             if not self._is_cancellable_order(order):
                 continue
-            order_id = order.get('orderid') or order.get('orderId')
+            order_id = order_id_from_order(order)
             ok, err = self._cancel_single_order(order)
             if ok:
                 cancelled.append(str(order_id))

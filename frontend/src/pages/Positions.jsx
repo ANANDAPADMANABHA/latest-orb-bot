@@ -19,10 +19,19 @@ function positionQty(p) {
 }
 
 function isPendingOrder(o) {
-  const status = String(o.orderstatus || o.orderStatus || '').toLowerCase();
-  if (status && !['complete', 'completed', 'cancelled', 'canceled', 'rejected', 'expired'].includes(status)) {
-    return true;
+  const statuses = [
+    o.status,
+    o.orderstatus,
+    o.orderStatus,
+  ].map((s) => String(s || '').toLowerCase().trim()).filter(Boolean);
+  const terminal = ['complete', 'completed', 'cancelled', 'canceled', 'rejected', 'expired'];
+  for (const status of statuses) {
+    if (terminal.includes(status)) continue;
+    if (status === 'open' || status.includes('pending')) return true;
+    if (status) return true;
   }
+  const unfilled = parseInt(Number(o.unfilledshares || o.unfilledqty || 0), 10);
+  if (unfilled > 0) return true;
   const qty = parseInt(Number(o.quantity || 0), 10);
   const filled = parseInt(Number(o.filledshares || o.filledquantity || 0), 10);
   return qty > filled;
@@ -90,18 +99,31 @@ export default function Positions() {
     }
   };
 
-  const handleCleanupOrphans = async () => {
+  const handleCleanupOrphans = async (symbolList) => {
     setCleaningOrphans(true);
     setError('');
     setSuccess('');
     try {
-      const { data } = await cleanupOrphanOrders();
+      const { data } = await cleanupOrphanOrders(symbolList);
       const n = data.cancelled_order_ids?.length ?? 0;
-      setSuccess(
-        n > 0
-          ? `Cancelled ${n} stale order(s): ${data.cancelled_order_ids.join(', ')}`
-          : 'No stale orders to cancel (or cleanup already done).'
-      );
+      const pending = data.pending_found?.length ?? 0;
+      const book = data.order_book_count ?? 0;
+      if (n > 0) {
+        setSuccess(`Cancelled ${n} stale order(s): ${data.cancelled_order_ids.join(', ')}`);
+      } else if (pending > 0 && data.errors?.length) {
+        setError(
+          `Found ${pending} pending order(s) but cancel failed. ${JSON.stringify(data.errors)}`
+        );
+      } else if (pending === 0 && book === 0) {
+        setError('Angel One returned an empty order book. Wait if rate-limited, then refresh.');
+      } else if (pending > 0) {
+        setError(
+          `Found ${pending} pending order(s) but none were cancelled. ` +
+          'Position may still show as open at broker, or deploy latest backend.'
+        );
+      } else {
+        setSuccess('No pending orders found in the order book.');
+      }
       await reload();
     } catch (e) {
       setError(e.response?.data?.error || e.message || 'Cleanup failed');
@@ -124,7 +146,8 @@ export default function Positions() {
     });
     if (stale.length === 0) return;
     autoCleanupDone.current = true;
-    handleCleanupOrphans();
+    const symbols = [...new Set(stale.map((o) => equityBase(o.tradingsymbol)))];
+    handleCleanupOrphans(symbols);
   }, [posLoading, ordLoading, positions, orders]);
 
   return (
@@ -135,7 +158,7 @@ export default function Positions() {
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={handleCleanupOrphans}
+            onClick={() => handleCleanupOrphans()}
             disabled={cleaningOrphans}
           >
             {cleaningOrphans ? 'Cancelling…' : 'Cancel stale orders'}
@@ -243,10 +266,10 @@ export default function Positions() {
                   <td>₹{parseFloat(o.price || 0).toFixed(2)}</td>
                   <td>
                     <span className={`badge ${
-                      o.orderstatus === 'complete' ? 'badge-green' :
-                      o.orderstatus === 'open'     ? 'badge-blue' :
-                      o.orderstatus === 'rejected' ? 'badge-red' : 'badge-gray'
-                    }`}>{o.orderstatus}</span>
+                      (o.orderstatus || o.status) === 'complete' ? 'badge-green' :
+                      (o.orderstatus || o.status) === 'open'     ? 'badge-blue' :
+                      (o.orderstatus || o.status) === 'rejected' ? 'badge-red' : 'badge-gray'
+                    }`}>{o.orderstatus || o.status}</span>
                   </td>
                   <td className="muted">{o.updatetime || o.ordertime || '—'}</td>
                 </tr>
