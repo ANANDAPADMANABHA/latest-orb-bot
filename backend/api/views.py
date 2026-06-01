@@ -48,12 +48,22 @@ def watchlist_detail(request, pk):
 
 @api_view(['GET'])
 def bot_status(request):
-    running = BotSession.objects.filter(status='running').order_by('-started_at').first()
+    from trading.bot_status_service import get_active_bot_session, session_is_alive
+
+    active = get_active_bot_session()
     last = BotSession.objects.order_by('-started_at').first()
     settings = BotSettings.get_singleton()
+    session_data = None
+    display = active or last
+    if display:
+        session_data = BotSessionSerializer(display).data
+    heartbeat_stale = False
+    if active:
+        heartbeat_stale = not session_is_alive(active)
     return Response({
-        'is_running': running is not None,
-        'session': BotSessionSerializer(running or last).data if (running or last) else None,
+        'is_running': active is not None,
+        'heartbeat_stale': heartbeat_stale,
+        'session': session_data,
         'settings': BotSettingsSerializer(settings).data,
     })
 
@@ -73,20 +83,43 @@ def bot_settings(request):
 
 @api_view(['POST'])
 def bot_start(request):
-    if BotSession.objects.filter(status='running').exists():
+    from trading.bot_status_service import bot_is_running, clear_stale_running_sessions
+
+    clear_stale_running_sessions()
+    if bot_is_running():
         return Response({'error': 'Bot is already running'}, status=status.HTTP_400_BAD_REQUEST)
 
     if celery_available():
+        from trading.health_service import celery_worker_available
+
+        worker_ok = celery_worker_available()
+        session = BotSession.objects.create(status='running', task_id='')
         try:
             from .tasks import run_trade_task
-            result = run_trade_task.delay()
-            return Response(
-                {'message': 'Bot started', 'task_id': result.id, 'mode': 'celery'},
-                status=status.HTTP_202_ACCEPTED,
-            )
+            result = run_trade_task.delay(session_id=session.id)
+            session.task_id = result.id or ''
+            session.save(update_fields=['task_id'])
         except Exception as exc:
-            if 'redis' not in str(exc).lower() and '6379' not in str(exc):
-                return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            session.status = 'error'
+            session.log = str(exc)
+            session.stopped_at = timezone.now()
+            session.save()
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        payload = {
+            'message': 'Bot started',
+            'task_id': session.task_id,
+            'session_id': session.id,
+            'mode': 'celery',
+            'is_running': True,
+        }
+        if not worker_ok:
+            payload['warning'] = (
+                'Task was queued but no Celery worker responded. '
+                'On the server run: sudo systemctl start trademaster-celery '
+                'and check: sudo journalctl -u trademaster-celery -f'
+            )
+        return Response(payload, status=status.HTTP_202_ACCEPTED)
 
     # Local fallback when Redis/Celery is not running (common on Windows dev)
     from .tasks import run_trade_bot_in_thread
@@ -111,9 +144,15 @@ def bot_start(request):
 
 @api_view(['POST'])
 def bot_stop(request):
-    running = BotSession.objects.filter(status='running').first()
+    from trading.bot_status_service import get_active_bot_session
+
+    running = get_active_bot_session()
     if not running:
         return Response({'error': 'Bot is not running'}, status=status.HTTP_400_BAD_REQUEST)
+
+    running.status = 'stopped'
+    running.stopped_at = timezone.now()
+    running.save(update_fields=['status', 'stopped_at'])
 
     if running.task_id and running.task_id != 'local-thread':
         try:
@@ -126,10 +165,7 @@ def bot_stop(request):
 
         request_bot_stop()
 
-    running.status = 'stopped'
-    running.stopped_at = timezone.now()
-    running.save()
-    return Response({'message': 'Bot stop requested'})
+    return Response({'message': 'Bot stop requested', 'session_id': running.id})
 
 
 # ─── Positions & Orders ───────────────────────────────────────────────────────

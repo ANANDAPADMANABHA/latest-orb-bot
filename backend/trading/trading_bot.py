@@ -5,12 +5,19 @@ import pandas as pd
 
 from trading.broker import orb_high_low_from_df
 from trading.strategies.opening_range_breakout import OpeningRangeBreakout
-def _should_stop_bot() -> bool:
+def _should_stop_bot(session_id: int | None = None) -> bool:
+    if session_id is not None:
+        from api.models import BotSession
+        row = BotSession.objects.filter(pk=session_id).values_list('status', flat=True).first()
+        if row != 'running':
+            return True
     try:
         from api.tasks import is_bot_stop_requested
-        return is_bot_stop_requested()
+        if is_bot_stop_requested():
+            return True
     except Exception:
-        return False
+        pass
+    return False
 
 
 class TradeMaster(OpeningRangeBreakout):
@@ -38,7 +45,10 @@ class TradeMaster(OpeningRangeBreakout):
         now = dt.datetime.now(IST)
         seconds_to_sleep = 300 - (now.minute % 5) * 60 - now.second - now.microsecond / 1_000_000
         print(f"Syncing to next 5-minute mark in {seconds_to_sleep:.1f}s...")
+        from trading.bot_heartbeat import touch_bot_heartbeat
+        touch_bot_heartbeat(session_id)
         time.sleep(max(0, seconds_to_sleep))
+        touch_bot_heartbeat(session_id)
 
         starttime = time.time()
         market_end_time = dt.datetime(
@@ -48,7 +58,7 @@ class TradeMaster(OpeningRangeBreakout):
         )
 
         while dt.datetime.now(IST) < market_end_time:
-            if _should_stop_bot():
+            if _should_stop_bot(session_id):
                 print('Bot stop requested — exiting loop.')
                 break
             print(f'Loop pass at {dt.datetime.now(IST).strftime("%H:%M:%S")}')

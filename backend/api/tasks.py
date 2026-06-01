@@ -28,9 +28,13 @@ def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
 
     if session_id:
         session = BotSession.objects.get(pk=session_id)
+        if session.status == 'stopped':
+            print(f'Bot session {session_id} already stopped — not starting.')
+            return
         session.task_id = task_id or session.task_id
         session.status = 'running'
-        session.save(update_fields=['task_id', 'status'])
+        session.stopped_at = None
+        session.save(update_fields=['task_id', 'status', 'stopped_at'])
     else:
         session = BotSession.objects.create(status='running', task_id=task_id)
 
@@ -49,6 +53,7 @@ def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
         from trading.pnl_service import sync_pnl_records
         sync_pnl_records(bot, replace_today=True)
 
+        session.refresh_from_db()
         if session.status == 'running':
             session.status = 'completed'
     except Exception as exc:
@@ -56,13 +61,14 @@ def execute_trade_bot(task_id: str = '', session_id: int | None = None) -> None:
         session.log = str(exc)
         raise
     finally:
+        session.refresh_from_db()
         session.stopped_at = timezone.now()
-        session.save()
+        session.save(update_fields=['stopped_at', 'status', 'log'])
 
 
 @shared_task(bind=True)
-def run_trade_task(self):
-    execute_trade_bot(task_id=self.request.id or '')
+def run_trade_task(self, session_id=None):
+    execute_trade_bot(task_id=self.request.id or '', session_id=session_id)
 
 
 @shared_task

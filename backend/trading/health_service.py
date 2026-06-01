@@ -31,6 +31,25 @@ def celery_available() -> bool:
         return False
 
 
+def celery_worker_available() -> bool:
+    """True if at least one Celery worker is connected (not just Redis)."""
+    if not celery_available():
+        return False
+    try:
+        from trademaster_project.celery import app as celery_app
+        inspect = celery_app.control.inspect(timeout=3)
+        if not inspect:
+            return False
+        ping = inspect.ping() or {}
+        if ping:
+            return True
+        # solo pool workers sometimes miss ping; stats() is more reliable
+        stats = inspect.stats() or {}
+        return len(stats) > 0
+    except Exception:
+        return False
+
+
 def _env(name: str) -> str:
     return os.environ.get(name, '').strip().strip("'\"")
 
@@ -99,17 +118,17 @@ def check_broker(*, probe: bool = False) -> dict:
 
 def check_celery() -> dict:
     redis_ok = celery_available()
-    worker_ok = False
+    worker_ok = celery_worker_available() if redis_ok else False
     worker_count = 0
 
-    if redis_ok:
+    if redis_ok and worker_ok:
         try:
             from trademaster_project.celery import app as celery_app
             ping = celery_app.control.inspect(timeout=2).ping() or {}
-            worker_count = len(ping)
-            worker_ok = worker_count > 0
+            stats = celery_app.control.inspect(timeout=2).stats() or {}
+            worker_count = max(len(ping), len(stats))
         except Exception:
-            worker_ok = False
+            worker_count = 1 if worker_ok else 0
 
     mode = 'celery' if redis_ok and worker_ok else 'local-thread'
     if not redis_ok:
@@ -191,10 +210,12 @@ def check_ip() -> dict:
 
 
 def check_bot() -> dict:
-    from api.models import BotSession
+    from trading.bot_status_service import get_active_bot_session, session_is_alive
 
-    running = BotSession.objects.filter(status='running').order_by('-started_at').first()
-    if not running:
+    active = get_active_bot_session()
+    if not active:
+        from api.models import BotSession
+
         last = BotSession.objects.order_by('-started_at').first()
         return {
             'is_running': False,
@@ -207,18 +228,12 @@ def check_bot() -> dict:
             'stale': False,
         }
 
-    heartbeat = running.last_heartbeat_at
-    stale = False
-    if heartbeat:
-        age = (timezone.now() - heartbeat).total_seconds()
-        stale = age > _HEARTBEAT_STALE_SECONDS
-    else:
-        age = (timezone.now() - running.started_at).total_seconds()
-        stale = age > _HEARTBEAT_STALE_SECONDS
+    heartbeat = active.last_heartbeat_at
+    stale = not session_is_alive(active)
 
     return {
         'is_running': True,
-        'session_id': running.id,
+        'session_id': active.id,
         'last_heartbeat_at': heartbeat.isoformat() if heartbeat else None,
         'stale': stale,
     }

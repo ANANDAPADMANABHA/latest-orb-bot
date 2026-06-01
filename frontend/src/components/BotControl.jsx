@@ -42,6 +42,7 @@ export default function BotControl() {
   const [riskLoading, setRiskLoading] = useState(false);
   const [capitalUsageLoading, setCapitalUsageLoading] = useState(false);
   const [error, setError] = useState('');
+  const [warning, setWarning] = useState('');
 
   const fetchStatus = async () => {
     try {
@@ -54,16 +55,27 @@ export default function BotControl() {
 
   useEffect(() => {
     fetchStatus();
-    const id = setInterval(fetchStatus, 10000);
+    const id = setInterval(fetchStatus, 5000);
     return () => clearInterval(id);
   }, []);
 
   const handleStart = async () => {
     setLoading(true);
     setError('');
+    setWarning('');
     try {
-      await startBot();
+      const { data } = await startBot();
+      if (data.warning) {
+        setWarning(data.warning);
+      }
       await fetchStatus();
+      // Poll quickly while Celery worker picks up the task
+      for (let i = 0; i < 15; i += 1) {
+        await new Promise((r) => setTimeout(r, 2000));
+        await fetchStatus();
+        const { data: st } = await getBotStatus();
+        if (st?.is_running) break;
+      }
     } catch (e) {
       setError(e.response?.data?.error || 'Failed to start bot');
     } finally {
@@ -77,6 +89,12 @@ export default function BotControl() {
     try {
       await stopBot();
       await fetchStatus();
+      for (let i = 0; i < 6; i += 1) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const { data: st } = await getBotStatus();
+        if (!st?.is_running) break;
+        await fetchStatus();
+      }
     } catch (e) {
       setError(e.response?.data?.error || 'Failed to stop bot');
     } finally {
@@ -142,7 +160,8 @@ export default function BotControl() {
     }
   };
 
-  const isRunning = status?.is_running;
+  const isRunning = Boolean(status?.is_running);
+  const heartbeatStale = Boolean(status?.heartbeat_stale);
   const activeStrategy = status?.settings?.stop_loss_strategy || 'fixed_percent';
   const activeRisk = status?.settings?.risk_percent ?? 1;
   const activeCapitalUsage = status?.settings?.max_capital_usage_percent ?? 100;
@@ -154,13 +173,16 @@ export default function BotControl() {
           <div className="bot-control-title">Bot Control</div>
           <div className="bot-control-sub">Weekday auto-run at 9:20 AM IST</div>
         </div>
-        <div className={`bot-indicator ${isRunning ? 'on' : 'off'}`}>
+        <div className={`bot-indicator ${isRunning ? (heartbeatStale ? 'warn' : 'on') : 'off'}`}>
           <span className="dot" />
-          {isRunning ? 'Running' : 'Stopped'}
+          {isRunning
+            ? (heartbeatStale ? 'Running (stale)' : 'Running')
+            : 'Stopped'}
         </div>
       </div>
 
       {error && <div className="bot-error">{error}</div>}
+      {warning && <div className="bot-warning">{warning}</div>}
 
       <div className="bot-control-actions">
         <button
