@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 import { getBrokerLive, exitPosition, cleanupOrphanOrders } from '../api/client';
 import './Positions.css';
 
+function parseAmount(v) {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function positionQty(p) {
   const net = p.netqty ?? p.netQty;
   if (net !== undefined && net !== null && net !== '') {
@@ -11,6 +16,48 @@ function positionQty(p) {
   const buy = parseInt(Number(p.buyqty ?? p.buyQty ?? 0), 10);
   const sell = parseInt(Number(p.sellqty ?? p.sellQty ?? 0), 10);
   return buy - sell;
+}
+
+/** Capital deployed for this position (avg price × qty, or broker buy/sell amount). */
+function positionInvestedCapital(p) {
+  const net = positionQty(p);
+  const qty = Math.abs(net);
+  if (qty === 0) return 0;
+
+  const buyAmt = parseAmount(
+    p.buyamount ?? p.buyAmount ?? p.totalbuyvalue ?? p.totalBuyValue,
+  );
+  const sellAmt = parseAmount(
+    p.sellamount ?? p.sellAmount ?? p.totalsellvalue ?? p.totalSellValue,
+  );
+
+  if (net > 0) {
+    if (buyAmt > 0) return buyAmt;
+    const buyPrice = parseAmount(p.buyavgprice ?? p.buyAvgPrice);
+    const buyQty = parseInt(Number(p.buyqty ?? p.buyQty ?? qty), 10) || qty;
+    return buyPrice * buyQty;
+  }
+
+  if (net < 0) {
+    if (sellAmt > 0) return sellAmt;
+    const sellPrice = parseAmount(p.sellavgprice ?? p.sellAvgPrice);
+    const sellQty = parseInt(Number(p.sellqty ?? p.sellQty ?? qty), 10) || qty;
+    return sellPrice * sellQty;
+  }
+
+  return Math.max(buyAmt, sellAmt);
+}
+
+function positionPnlPercent(p) {
+  const invested = positionInvestedCapital(p);
+  if (invested <= 0) return null;
+  return (parseAmount(p.pnl) / invested) * 100;
+}
+
+function formatPnlPercent(pct) {
+  if (pct === null || !Number.isFinite(pct)) return '—';
+  const sign = pct > 0 ? '+' : '';
+  return `${sign}${pct.toFixed(2)}%`;
 }
 
 export default function Positions() {
@@ -155,6 +202,7 @@ export default function Positions() {
                 <th>Buy Price</th>
                 <th>Sell Price</th>
                 <th>P&L</th>
+                <th>P&L %</th>
                 <th>Product</th>
                 <th>Actions</th>
               </tr>
@@ -163,6 +211,7 @@ export default function Positions() {
               {openPositions.map((p, i) => {
                 const qty = positionQty(p);
                 const canExit = qty !== 0;
+                const pnlPct = positionPnlPercent(p);
                 return (
                   <tr key={p.tradingsymbol || i}>
                     <td><strong>{p.tradingsymbol}</strong></td>
@@ -171,6 +220,22 @@ export default function Positions() {
                     <td>₹{parseFloat(p.sellavgprice || 0).toFixed(2)}</td>
                     <td className={parseFloat(p.pnl) >= 0 ? 'positive' : 'negative'}>
                       ₹{parseFloat(p.pnl || 0).toFixed(2)}
+                    </td>
+                    <td
+                      className={
+                        pnlPct === null
+                          ? 'muted'
+                          : pnlPct >= 0
+                            ? 'positive'
+                            : 'negative'
+                      }
+                      title={
+                        pnlPct !== null
+                          ? `P&L ÷ invested capital (₹${positionInvestedCapital(p).toFixed(2)})`
+                          : undefined
+                      }
+                    >
+                      {formatPnlPercent(pnlPct)}
                     </td>
                     <td><span className="badge badge-blue">{p.producttype}</span></td>
                     <td className="positions-actions">
