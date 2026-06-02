@@ -96,7 +96,8 @@ def get_active_bot_session():
     celery_sid = _celery_active_session_id()
     if celery_sid:
         session = BotSession.objects.filter(pk=celery_sid).first()
-        if session:
+        # Respect an explicit user stop — do not revive the session while the worker winds down.
+        if session and session.status != 'stopped':
             _repair_session_running(session)
             _stop_duplicate_running_sessions(now=now, keep_id=celery_sid)
             return session
@@ -121,7 +122,7 @@ def get_active_bot_session():
         .order_by('-last_heartbeat_at')
         .first()
     )
-    if recent and session_is_alive(recent, now):
+    if recent and recent.status != 'stopped' and session_is_alive(recent, now):
         _repair_session_running(recent)
         return recent
 

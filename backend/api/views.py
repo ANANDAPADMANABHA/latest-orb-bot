@@ -149,9 +149,7 @@ def bot_start(request):
 
 @api_view(['POST'])
 def bot_stop(request):
-    from trading.bot_status_service import get_active_bot_session
-
-    running = get_active_bot_session()
+    running = BotSession.objects.filter(status='running').order_by('-started_at').first()
     if not running:
         return Response({'error': 'Bot is not running'}, status=status.HTTP_400_BAD_REQUEST)
 
