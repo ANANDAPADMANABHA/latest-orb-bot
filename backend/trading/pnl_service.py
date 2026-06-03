@@ -1,7 +1,8 @@
 import datetime as dt
 from typing import List, Tuple
 
-from api.models import PnLRecord
+from api.models import PnLRecord, Trade
+from trading.position_utils import position_invested_capital
 
 PNL_MATCH_EPSILON = 0.01
 
@@ -29,6 +30,29 @@ def normalize_symbol(raw: str) -> str:
 
 def pnl_matches(a: float, b: float) -> bool:
     return abs(float(a) - float(b)) < PNL_MATCH_EPSILON
+
+
+def pnl_percent(pnl: float, invested_capital: float | None) -> float | None:
+    if not invested_capital or invested_capital <= 0:
+        return None
+    return (float(pnl) / float(invested_capital)) * 100.0
+
+
+def invested_capital_for_pnl_record(record: PnLRecord) -> float | None:
+    """Stored capital, or estimate from bot Trade entry if missing."""
+    if record.invested_capital and record.invested_capital > 0:
+        return float(record.invested_capital)
+    trade = (
+        Trade.objects.filter(
+            symbol=record.symbol,
+            executed_at__date=record.date,
+        )
+        .order_by('-executed_at')
+        .first()
+    )
+    if trade and trade.entry_price and trade.quantity:
+        return float(trade.entry_price) * int(trade.quantity)
+    return None
 
 
 def parse_position_rows(data: list) -> List[dict]:
@@ -60,12 +84,14 @@ def parse_position_rows(data: list) -> List[dict]:
         for key in ('buyqty', 'sellqty', 'quantity', 'netqty'):
             qty = max(qty, abs(_safe_int(item.get(key))))
 
+        invested = position_invested_capital(item)
         trades.append({
             'date': today,
             'symbol': symbol,
             'quantity': qty,
             'pnl': pnl,
             'netqty': netqty,
+            'invested_capital': invested if invested > 0 else None,
         })
 
     return trades
@@ -87,11 +113,17 @@ def merge_pnl_rows_by_symbol(rows: List[dict]) -> List[dict]:
         existing = merged[symbol]
         if pnl_matches(existing['pnl'], pnl):
             existing['quantity'] = max(int(existing['quantity']), qty)
+            inv = row.get('invested_capital')
+            if inv and (not existing.get('invested_capital') or inv > existing['invested_capital']):
+                existing['invested_capital'] = inv
             continue
 
         existing['pnl'] = float(existing['pnl']) + pnl
         existing['quantity'] = max(int(existing['quantity']), qty)
         existing['netqty'] = netqty
+        inv = row.get('invested_capital')
+        if inv:
+            existing['invested_capital'] = float(existing.get('invested_capital') or 0) + float(inv)
 
     return list(merged.values())
 
@@ -131,7 +163,10 @@ def dedupe_pnl_records_in_db() -> int:
         pnls = [float(r.pnl) for r in rows]
         keep.pnl = pnls[0] if max(pnls) - min(pnls) < PNL_MATCH_EPSILON else sum(pnls)
         keep.quantity = max(r.quantity for r in rows)
-        keep.save(update_fields=['pnl', 'quantity'])
+        invested = [float(r.invested_capital) for r in rows if r.invested_capital]
+        if invested:
+            keep.invested_capital = max(invested)
+        keep.save(update_fields=['pnl', 'quantity', 'invested_capital'])
 
         deleted, _ = (
             PnLRecord.objects
@@ -176,17 +211,21 @@ def record_pnl_trade(
     quantity: int,
     pnl: float,
     trade_date: dt.date | None = None,
+    invested_capital: float | None = None,
 ) -> PnLRecord:
     """Upsert one symbol's P&L for a given day."""
     trade_date = trade_date or dt.date.today()
     symbol = normalize_symbol(symbol)
+    defaults = {
+        'quantity': int(quantity or 0),
+        'pnl': float(pnl or 0),
+    }
+    if invested_capital and invested_capital > 0:
+        defaults['invested_capital'] = float(invested_capital)
     obj, _ = PnLRecord.objects.update_or_create(
         date=trade_date,
         symbol=symbol,
-        defaults={
-            'quantity': int(quantity or 0),
-            'pnl': float(pnl or 0),
-        },
+        defaults=defaults,
     )
     return obj
 
@@ -215,13 +254,16 @@ def sync_pnl_records(client, replace_today: bool = True) -> Tuple[List[dict], in
         if _already_recorded(symbol, pnl, exclude_date=today):
             continue
 
+        defaults = {
+            'quantity': t['quantity'],
+            'pnl': pnl,
+        }
+        if t.get('invested_capital'):
+            defaults['invested_capital'] = float(t['invested_capital'])
         PnLRecord.objects.update_or_create(
             date=today,
             symbol=symbol,
-            defaults={
-                'quantity': t['quantity'],
-                'pnl': pnl,
-            },
+            defaults=defaults,
         )
         saved_rows.append(t)
         written += 1

@@ -28,6 +28,74 @@ def symbols_match(a: str, b: str) -> bool:
     return equity_base_symbol(a) == equity_base_symbol(b)
 
 
+def _row_float(row, *keys, default: float = 0.0) -> float:
+    val = _row_field(row, *keys)
+    if val in (None, ''):
+        return default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def _row_int(row, *keys, default: int = 0) -> int:
+    val = _row_field(row, *keys)
+    if val in (None, ''):
+        return default
+    try:
+        return int(float(val))
+    except (TypeError, ValueError):
+        return default
+
+
+def position_invested_capital(row) -> float:
+    """
+    Capital deployed for a broker position row (open or closed).
+    Matches the Positions page P&L % denominator.
+    """
+    if row is None:
+        return 0.0
+
+    net = net_position_qty(row)
+    qty = abs(net)
+
+    buy_amt = _row_float(
+        row, 'buyamount', 'buyAmount', 'totalbuyvalue', 'totalBuyValue',
+    )
+    sell_amt = _row_float(
+        row, 'sellamount', 'sellAmount', 'totalsellvalue', 'totalSellValue',
+    )
+
+    if net > 0:
+        if buy_amt > 0:
+            return buy_amt
+        buy_price = _row_float(row, 'buyavgprice', 'buyAvgPrice')
+        buy_qty = _row_int(row, 'buyqty', 'buyQty', 'BuyQty', default=qty) or qty
+        return buy_price * buy_qty
+
+    if net < 0:
+        if sell_amt > 0:
+            return sell_amt
+        sell_price = _row_float(row, 'sellavgprice', 'sellAvgPrice')
+        sell_qty = _row_int(row, 'sellqty', 'sellQty', 'SellQty', default=qty) or qty
+        return sell_price * sell_qty
+
+    buy_qty = _row_int(row, 'buyqty', 'buyQty', 'BuyQty')
+    sell_qty = _row_int(row, 'sellqty', 'sellQty', 'SellQty')
+    if buy_qty >= sell_qty and buy_qty > 0:
+        if buy_amt > 0:
+            return buy_amt
+        buy_price = _row_float(row, 'buyavgprice', 'buyAvgPrice')
+        return buy_price * buy_qty
+    if sell_qty > 0:
+        if sell_amt > 0:
+            return sell_amt
+        sell_price = _row_float(row, 'sellavgprice', 'sellAvgPrice')
+        return sell_price * sell_qty
+
+    return max(buy_amt, sell_amt)
+
+
 def net_position_qty(row) -> int:
     """
     Net open quantity for a position row.

@@ -27,9 +27,21 @@ class BotSessionSerializer(serializers.ModelSerializer):
 
 
 class PnLRecordSerializer(serializers.ModelSerializer):
+    pnl_percent = serializers.SerializerMethodField()
+
     class Meta:
         model = PnLRecord
-        fields = ['id', 'date', 'symbol', 'quantity', 'pnl', 'created_at']
+        fields = [
+            'id', 'date', 'symbol', 'quantity', 'pnl',
+            'invested_capital', 'pnl_percent', 'created_at',
+        ]
+
+    def get_pnl_percent(self, obj):
+        from trading.pnl_service import invested_capital_for_pnl_record, pnl_percent
+
+        invested = invested_capital_for_pnl_record(obj)
+        pct = pnl_percent(obj.pnl, invested)
+        return round(pct, 2) if pct is not None else None
 
 
 class BotSettingsSerializer(serializers.ModelSerializer):

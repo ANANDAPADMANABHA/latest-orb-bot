@@ -131,6 +131,11 @@ class PnLRecord(models.Model):
     symbol = models.CharField(max_length=20)
     quantity = models.IntegerField(default=0)
     pnl = models.FloatField()
+    invested_capital = models.FloatField(
+        null=True,
+        blank=True,
+        help_text='Capital deployed for this trade (for P&L %).',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

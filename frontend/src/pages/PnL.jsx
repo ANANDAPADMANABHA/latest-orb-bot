@@ -86,6 +86,13 @@ function barColor(pnl) {
   return 'var(--text-muted)';
 }
 
+function formatPnlPercent(pct) {
+  if (pct === null || pct === undefined || !Number.isFinite(Number(pct))) return '—';
+  const n = Number(pct);
+  const sign = n > 0 ? '+' : '';
+  return `${sign}${n.toFixed(2)}%`;
+}
+
 function chartYDomain(data) {
   const values = data.map(d => d.pnl);
   const maxPnl = Math.max(...values, 0);
@@ -221,7 +228,7 @@ export default function PnL() {
       <div className="card">
         <div className="pnl-table-header">
           <div>
-            <span className="section-title">Trade Records</span>
+            <span className="section-title">P&L by symbol</span>
             {!loading && (
               <span className={`pnl-total ${totalFiltered >= 0 ? 'positive' : 'negative'}`}>
                 {' '}— ₹{totalFiltered.toFixed(2)} total
@@ -249,10 +256,13 @@ export default function PnL() {
                 <th>Symbol</th>
                 <th>Qty</th>
                 <th>P&L</th>
+                <th>P&L %</th>
               </tr>
             </thead>
             <tbody>
-              {records.map(r => (
+              {records.map(r => {
+                const pct = r.pnl_percent;
+                return (
                 <tr key={r.id}>
                   <td className="muted">{r.date}</td>
                   <td><strong>{r.symbol}</strong></td>
@@ -260,8 +270,25 @@ export default function PnL() {
                   <td className={parseFloat(r.pnl) >= 0 ? 'positive' : 'negative'}>
                     ₹{parseFloat(r.pnl).toFixed(2)}
                   </td>
+                  <td
+                    className={
+                      pct === null || pct === undefined
+                        ? 'muted'
+                        : pct >= 0
+                          ? 'positive'
+                          : 'negative'
+                    }
+                    title={
+                      r.invested_capital
+                        ? `P&L ÷ invested capital (₹${parseFloat(r.invested_capital).toFixed(2)})`
+                        : 'Re-sync from broker to refresh invested capital'
+                    }
+                  >
+                    {formatPnlPercent(pct)}
+                  </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
