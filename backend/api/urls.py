@@ -16,16 +16,16 @@ urlpatterns = [
     path('watchlist/', views.watchlist, name='watchlist'),
     path('watchlist/<int:pk>/', views.watchlist_detail, name='watchlist-detail'),
 
-    # Chartink webhook (public POST with secret in URL)
-    path(
-        'webhooks/chartink/<str:secret>/',
-        chartink_views.chartink_webhook,
-        name='chartink-webhook',
-    ),
+    # Chartink — config/ must be before <secret>/ or "config" is treated as the secret
     path(
         'webhooks/chartink/config/',
         chartink_views.chartink_webhook_config,
         name='chartink-webhook-config',
+    ),
+    path(
+        'webhooks/chartink/<str:secret>/',
+        chartink_views.chartink_webhook,
+        name='chartink-webhook',
     ),
 
     # Bot control
