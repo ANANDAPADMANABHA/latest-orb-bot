@@ -45,6 +45,7 @@ export const getMe = () => api.get('/auth/me/');
 export const getWatchlist = () => api.get('/watchlist/');
 export const addTicker = (symbol) => api.post('/watchlist/', { symbol });
 export const deleteTicker = (id) => api.delete(`/watchlist/${id}/`);
+export const getChartinkWebhookConfig = () => api.get('/webhooks/chartink/config/');
 
 // Charts (forceRefresh bypasses 60s server cache)
 export const getWatchlistCharts = (forceRefresh = false) =>

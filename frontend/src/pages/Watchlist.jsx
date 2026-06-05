@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getWatchlist, addTicker, deleteTicker } from '../api/client';
+import { getWatchlist, addTicker, deleteTicker, getChartinkWebhookConfig } from '../api/client';
 import './Watchlist.css';
 
 export default function Watchlist() {
@@ -7,13 +7,27 @@ export default function Watchlist() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [webhookConfig, setWebhookConfig] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   const load = async () => {
     const { data } = await getWatchlist();
     setTickers(data);
   };
 
-  useEffect(() => { load(); }, []);
+  const loadWebhookConfig = async () => {
+    try {
+      const { data } = await getChartinkWebhookConfig();
+      setWebhookConfig(data);
+    } catch {
+      setWebhookConfig({ enabled: false });
+    }
+  };
+
+  useEffect(() => {
+    load();
+    loadWebhookConfig();
+  }, []);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -41,19 +55,60 @@ export default function Watchlist() {
     }
   };
 
+  const handleCopyWebhook = async () => {
+    if (!webhookConfig?.webhook_url) return;
+    try {
+      await navigator.clipboard.writeText(webhookConfig.webhook_url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Could not copy — select and copy the URL manually');
+    }
+  };
+
   return (
     <div className="watchlist-page">
       <h1 className="page-title">Watchlist</h1>
       <p className="page-sub">
-        Tickers the ORB bot will scan each trading day. Symbols must be valid NSE EQ names (e.g. <code>RELIANCE</code>, <code>INFY</code>).
+        Tickers the ORB bot scans each trading day. Use manual add below, or let Chartink
+        replace the list automatically at 11:00 AM IST via webhook.
       </p>
+
+      {webhookConfig?.enabled && webhookConfig.webhook_url && (
+        <div className="card chartink-card">
+          <div className="chartink-title">Chartink webhook</div>
+          <p className="chartink-hint">
+            Paste this URL into your Chartink scanner alert (Create/Modify Alert → Webhook URL).
+            Schedule the alert for <strong>weekdays 11:00 AM IST</strong>. Each alert replaces
+            the watchlist and starts the bot.
+          </p>
+          <div className="chartink-url-row">
+            <code className="chartink-url">{webhookConfig.webhook_url}</code>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={handleCopyWebhook}>
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </div>
+          {webhookConfig.instructions && (
+            <p className="chartink-note muted">{webhookConfig.instructions}</p>
+          )}
+        </div>
+      )}
+
+      {webhookConfig && !webhookConfig.enabled && (
+        <div className="card chartink-card chartink-disabled">
+          <div className="chartink-title">Chartink webhook</div>
+          <p className="chartink-hint muted">
+            Not configured. Set <code>CHARTINK_WEBHOOK_SECRET</code> in server <code>.env</code> and redeploy.
+          </p>
+        </div>
+      )}
 
       <div className="card">
         <form className="add-ticker-form" onSubmit={handleAdd}>
           <input
             value={input}
             onChange={e => setInput(e.target.value.toUpperCase())}
-            placeholder="Add symbol (e.g. TCS)"
+            placeholder="Add symbol manually (e.g. TCS)"
             maxLength={20}
           />
           <button className="btn btn-primary" type="submit" disabled={loading || !input.trim()}>
@@ -65,7 +120,7 @@ export default function Watchlist() {
 
       <div className="card">
         {tickers.length === 0 ? (
-          <div className="empty-state">No tickers in watchlist. Add some above.</div>
+          <div className="empty-state">No tickers in watchlist. Add manually or wait for Chartink at 11 AM.</div>
         ) : (
           <table>
             <thead>

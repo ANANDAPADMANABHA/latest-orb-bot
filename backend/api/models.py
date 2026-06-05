@@ -126,6 +126,33 @@ class ManagedPosition(models.Model):
         ordering = ['-opened_at']
 
 
+class ChartinkWebhookEvent(models.Model):
+    STATUS_OK = 'ok'
+    STATUS_ERROR = 'error'
+    STATUS_CHOICES = [
+        (STATUS_OK, 'OK'),
+        (STATUS_ERROR, 'Error'),
+    ]
+
+    received_at = models.DateTimeField(auto_now_add=True)
+    scan_name = models.CharField(max_length=120, blank=True)
+    alert_name = models.CharField(max_length=120, blank=True)
+    triggered_at = models.CharField(max_length=40, blank=True)
+    symbol_count = models.PositiveIntegerField(default=0)
+    symbols_added = models.PositiveIntegerField(default=0)
+    symbols_skipped = models.PositiveIntegerField(default=0)
+    bot_session_id = models.PositiveIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OK)
+    error = models.TextField(blank=True)
+    raw_payload = models.TextField(blank=True)
+
+    def __str__(self):
+        return f'Chartink {self.scan_name or "webhook"} @ {self.received_at:%Y-%m-%d %H:%M}'
+
+    class Meta:
+        ordering = ['-received_at']
+
+
 class PnLRecord(models.Model):
     date = models.DateField()
     symbol = models.CharField(max_length=20)

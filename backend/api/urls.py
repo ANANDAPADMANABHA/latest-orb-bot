@@ -3,6 +3,7 @@ from . import views
 from . import auth_views
 from . import broker_views
 from . import chart_views
+from . import chartink_views
 
 urlpatterns = [
     # Auth
@@ -14,6 +15,18 @@ urlpatterns = [
     # Watchlist
     path('watchlist/', views.watchlist, name='watchlist'),
     path('watchlist/<int:pk>/', views.watchlist_detail, name='watchlist-detail'),
+
+    # Chartink webhook (public POST with secret in URL)
+    path(
+        'webhooks/chartink/<str:secret>/',
+        chartink_views.chartink_webhook,
+        name='chartink-webhook',
+    ),
+    path(
+        'webhooks/chartink/config/',
+        chartink_views.chartink_webhook_config,
+        name='chartink-webhook-config',
+    ),
 
     # Bot control
     path('bot/status/', views.bot_status, name='bot-status'),

@@ -56,6 +56,8 @@ sudo bash deploy/verify.sh https://yourdomain.com
 | GET | `/api/bot/status/` | Bot running status |
 | POST | `/api/bot/start/` | Start bot manually |
 | POST | `/api/bot/stop/` | Stop running bot |
+| POST | `/api/webhooks/chartink/<secret>/` | Chartink alert webhook (public; replaces watchlist + starts bot) |
+| GET | `/api/webhooks/chartink/config/` | Webhook URL for Chartink setup (login required) |
 | GET | `/api/positions/` | Live positions from Angel One |
 | GET | `/api/orders/` | Live order book |
 | GET | `/api/capital/` | Available trading capital |

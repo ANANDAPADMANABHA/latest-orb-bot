@@ -1,13 +1,9 @@
 import datetime as dt
-import threading
 
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-
-from trading.health_service import celery_available
 
 from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings
 from .serializers import (
@@ -88,85 +84,25 @@ def bot_settings(request):
 
 @api_view(['POST'])
 def bot_start(request):
-    from trading.bot_status_service import bot_is_running, clear_stale_running_sessions
+    from trading.bot_control_service import BotAlreadyRunningError, BotStartError, start_bot
 
-    clear_stale_running_sessions()
-    if bot_is_running():
+    try:
+        payload = start_bot()
+    except BotAlreadyRunningError:
         return Response({'error': 'Bot is already running'}, status=status.HTTP_400_BAD_REQUEST)
+    except BotStartError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    if celery_available():
-        from trading.health_service import celery_worker_available
-
-        worker_ok = celery_worker_available()
-        session = BotSession.objects.create(status='running', task_id='')
-        try:
-            from .tasks import run_trade_task
-            result = run_trade_task.delay(session_id=session.id)
-            session.task_id = result.id or ''
-            session.save(update_fields=['task_id'])
-        except Exception as exc:
-            session.status = 'error'
-            session.log = str(exc)
-            session.stopped_at = timezone.now()
-            session.save()
-            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        payload = {
-            'message': 'Bot started',
-            'task_id': session.task_id,
-            'session_id': session.id,
-            'mode': 'celery',
-            'is_running': True,
-        }
-        if not worker_ok:
-            payload['warning'] = (
-                'Task was queued but no Celery worker responded. '
-                'On the server run: sudo systemctl start trademaster-celery '
-                'and check: sudo journalctl -u trademaster-celery -f'
-            )
-        return Response(payload, status=status.HTTP_202_ACCEPTED)
-
-    # Local fallback when Redis/Celery is not running (common on Windows dev)
-    from .tasks import run_trade_bot_in_thread
-
-    session = BotSession.objects.create(status='running', task_id='local-thread')
-    thread = threading.Thread(
-        target=run_trade_bot_in_thread,
-        args=(session.id,),
-        daemon=True,
-        name='trademaster-bot',
-    )
-    thread.start()
-    return Response(
-        {
-            'message': 'Bot started in local mode (no Redis). Install Redis + Celery worker for production.',
-            'session_id': session.id,
-            'mode': 'local-thread',
-        },
-        status=status.HTTP_202_ACCEPTED,
-    )
+    return Response(payload, status=status.HTTP_202_ACCEPTED)
 
 
 @api_view(['POST'])
 def bot_stop(request):
-    running = BotSession.objects.filter(status='running').order_by('-started_at').first()
+    from trading.bot_control_service import stop_running_bot
+
+    running = stop_running_bot()
     if not running:
         return Response({'error': 'Bot is not running'}, status=status.HTTP_400_BAD_REQUEST)
-
-    running.status = 'stopped'
-    running.stopped_at = timezone.now()
-    running.save(update_fields=['status', 'stopped_at'])
-
-    if running.task_id and running.task_id != 'local-thread':
-        try:
-            from trademaster_project.celery import app as celery_app
-            celery_app.control.revoke(running.task_id, terminate=True)
-        except Exception:
-            pass
-    else:
-        from .tasks import request_bot_stop
-
-        request_bot_stop()
 
     return Response({'message': 'Bot stop requested', 'session_id': running.id})
 

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import WatchlistTicker, BotSession, Trade, PnLRecord
+from .models import WatchlistTicker, BotSession, Trade, PnLRecord, ChartinkWebhookEvent
 
 
 @admin.register(WatchlistTicker)
@@ -26,3 +26,14 @@ class PnLRecordAdmin(admin.ModelAdmin):
     list_display = ['date', 'symbol', 'quantity', 'pnl']
     list_filter = ['date']
     ordering = ['-date']
+
+
+@admin.register(ChartinkWebhookEvent)
+class ChartinkWebhookEventAdmin(admin.ModelAdmin):
+    list_display = [
+        'received_at', 'scan_name', 'symbols_added', 'symbols_skipped',
+        'bot_session_id', 'status',
+    ]
+    list_filter = ['status']
+    ordering = ['-received_at']
+    readonly_fields = ['raw_payload']

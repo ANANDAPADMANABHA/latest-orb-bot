@@ -90,6 +90,12 @@ When moving from local PC to VPS:
    **OR** create a new app with VPS IP and update `API_KEY` in `.env`
 3. No Python code changes needed — only `.env`
 
+## Chartink auto-watchlist (11 AM bot start)
+
+See **[CHARTINK.md](CHARTINK.md)** for webhook URL setup, Chartink alert configuration, and curl testing.
+
+Summary: set `CHARTINK_WEBHOOK_SECRET` in `.env`, set `BOT_AUTO_START_0920=false`, deploy, copy webhook URL from the Watchlist page into Chartink.
+
 ## Ongoing updates
 
 ```bash
@@ -116,7 +122,8 @@ sudo bash deploy/deploy.sh
 | Invalid API Key | Check `API_KEY` in `.env` matches Angel One portal |
 | IP mismatch on orders | VPS IP must match registered Primary Static IP |
 | 502 Bad Gateway | `sudo systemctl status trademaster-web` |
-| Bot not auto-starting | `sudo systemctl status trademaster-celery-beat` |
+| Bot not auto-starting at 11 AM | Chartink webhook + `CHARTINK_WEBHOOK_SECRET` — see [CHARTINK.md](CHARTINK.md) |
+| Celery beat issues | `sudo systemctl status trademaster-celery-beat` |
 | Rate limit errors | Avoid refreshing Dashboard too often |
 
 ## Security checklist
