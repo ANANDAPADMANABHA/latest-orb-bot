@@ -225,7 +225,7 @@ export default function PnL() {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card pnl-symbol-card">
         <div className="pnl-table-header">
           <div>
             <span className="section-title">P&L by symbol</span>
@@ -249,48 +249,50 @@ export default function PnL() {
             No records{dateFilter ? ` for ${dateFilter}` : ''}. Sync from broker after trading.
           </div>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Symbol</th>
-                <th>Qty</th>
-                <th>P&L</th>
-                <th>P&L %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map(r => {
-                const pct = r.pnl_percent;
-                return (
-                <tr key={r.id}>
-                  <td className="muted">{r.date}</td>
-                  <td><strong>{r.symbol}</strong></td>
-                  <td>{r.quantity}</td>
-                  <td className={parseFloat(r.pnl) >= 0 ? 'positive' : 'negative'}>
-                    ₹{parseFloat(r.pnl).toFixed(2)}
-                  </td>
-                  <td
-                    className={
-                      pct === null || pct === undefined
-                        ? 'muted'
-                        : pct >= 0
-                          ? 'positive'
-                          : 'negative'
-                    }
-                    title={
-                      r.invested_capital
-                        ? `P&L ÷ invested capital (₹${parseFloat(r.invested_capital).toFixed(2)})`
-                        : 'Re-sync from broker to refresh invested capital'
-                    }
-                  >
-                    {formatPnlPercent(pct)}
-                  </td>
+          <div className="pnl-symbol-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Symbol</th>
+                  <th>Qty</th>
+                  <th>P&L</th>
+                  <th>P&L %</th>
                 </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {records.map(r => {
+                  const pct = r.pnl_percent;
+                  return (
+                  <tr key={r.id}>
+                    <td className="muted">{r.date}</td>
+                    <td><strong>{r.symbol}</strong></td>
+                    <td>{r.quantity}</td>
+                    <td className={parseFloat(r.pnl) >= 0 ? 'positive' : 'negative'}>
+                      ₹{parseFloat(r.pnl).toFixed(2)}
+                    </td>
+                    <td
+                      className={
+                        pct === null || pct === undefined
+                          ? 'muted'
+                          : pct >= 0
+                            ? 'positive'
+                            : 'negative'
+                      }
+                      title={
+                        r.invested_capital
+                          ? `P&L ÷ invested capital (₹${parseFloat(r.invested_capital).toFixed(2)})`
+                          : 'Re-sync from broker to refresh invested capital'
+                      }
+                    >
+                      {formatPnlPercent(pct)}
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
