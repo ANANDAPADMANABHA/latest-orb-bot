@@ -91,7 +91,12 @@ class OpeningRangeBreakout(AngelOneClient):
 
         update_trailing_stops(self, positions, self.instrument_list, exchange)
 
-        from trading.position_utils import equity_base_symbol, net_position_qty, position_tradingsymbol
+        from trading.position_utils import (
+            equity_base_symbol,
+            net_position_qty,
+            position_tradingsymbol,
+            symbols_traded_today,
+        )
 
         open_bases = set()
         if not positions.empty:
@@ -107,6 +112,17 @@ class OpeningRangeBreakout(AngelOneClient):
             active_tickers = [
                 i for i in active_tickers
                 if i + "-EQ" not in open_orders["tradingsymbol"].to_list()
+            ]
+
+        traded_today = symbols_traded_today()
+        if traded_today:
+            skipped_today = [t for t in active_tickers if t.upper() in traded_today]
+            if skipped_today:
+                print(
+                    f'SKIP (already traded today): {", ".join(skipped_today)}'
+                )
+            active_tickers = [
+                t for t in active_tickers if t.upper() not in traded_today
             ]
 
         for ticker in active_tickers:

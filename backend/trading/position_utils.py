@@ -28,6 +28,20 @@ def symbols_match(a: str, b: str) -> bool:
     return equity_base_symbol(a) == equity_base_symbol(b)
 
 
+def symbols_traded_today() -> set[str]:
+    """NSE bases (e.g. RELIANCE) with a ManagedPosition opened today (IST)."""
+    from django.utils import timezone
+
+    from api.models import ManagedPosition
+
+    today = timezone.localdate()
+    return {
+        s.upper()
+        for s in ManagedPosition.objects.filter(opened_at__date=today)
+        .values_list('symbol', flat=True)
+    }
+
+
 def _row_float(row, *keys, default: float = 0.0) -> float:
     val = _row_field(row, *keys)
     if val in (None, ''):
