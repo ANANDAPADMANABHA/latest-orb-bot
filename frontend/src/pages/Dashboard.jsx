@@ -4,7 +4,6 @@ import {
 } from 'recharts';
 import StatCard from '../components/StatCard';
 import BotControl from '../components/BotControl';
-import SystemStatus from '../components/SystemStatus';
 import { getCapital, getPnLToday, getPnLSummary } from '../api/client';
 import './Dashboard.css';
 
@@ -13,11 +12,9 @@ export default function Dashboard() {
   const [today, setToday] = useState(null);
   const [summary, setSummary] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [healthProbeTrigger, setHealthProbeTrigger] = useState(0);
 
   const loadDashboard = useCallback(async () => {
     setRefreshing(true);
-    setHealthProbeTrigger((n) => n + 1);
     try {
       await Promise.all([
         getCapital().then(r => setCapital(r.data.capital)).catch(() => {}),
@@ -79,8 +76,6 @@ export default function Dashboard() {
           sub={summary.length ? `${((winDays / summary.length) * 100).toFixed(0)}% win rate` : ''}
         />
       </div>
-
-      <SystemStatus probeTrigger={healthProbeTrigger} />
 
       <BotControl />
 

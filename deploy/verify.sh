@@ -16,8 +16,6 @@ done
 
 echo ""
 echo "==> Checking API endpoints..."
-curl -sf "${BASE_URL}/api/health/" | head -c 400 && echo "" || echo "  FAIL /api/health/"
-
 BOT_HTTP=$(curl -so /dev/null -w "%{http_code}" "${BASE_URL}/api/bot/status/" || echo "000")
 if [[ "${BOT_HTTP}" == "401" || "${BOT_HTTP}" == "403" ]]; then
   echo "  OK  /api/bot/status/ (${BOT_HTTP} — auth required, as expected)"

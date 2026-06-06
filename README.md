@@ -65,13 +65,12 @@ sudo bash deploy/verify.sh https://yourdomain.com
 | GET | `/api/pnl/today/` | Today's trades + total P&L |
 | GET | `/api/pnl/summary/` | Daily aggregate P&L (for chart) |
 | GET | `/api/sessions/` | Past bot sessions |
-| GET | `/api/health/` | System status (public; no login). Add `?probe=1` to test Angel One login |
 | GET | `/api/auth/csrf/` | Set CSRF cookie (public) |
 | POST | `/api/auth/login/` | Sign in (public) |
 | POST | `/api/auth/logout/` | Sign out |
 | GET | `/api/auth/me/` | Current user |
 
-All endpoints except `/api/health/` and `/api/auth/csrf|login/` require a logged-in session.
+All endpoints except `/api/auth/csrf|login/` require a logged-in session.
 
 ---
 

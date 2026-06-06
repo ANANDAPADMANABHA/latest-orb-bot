@@ -72,7 +72,7 @@ Copy [backend/.env.production.example](../backend/.env.production.example) to `b
 
 ## Web login
 
-All API routes except `/api/health/` and login require a Django user session. After first deploy:
+All API routes except login require a Django user session. After first deploy:
 
 ```bash
 cd /var/www/trademaster/backend
