@@ -54,10 +54,10 @@ def compute_sl_target(
     else:
         if side == 'BUY':
             sl = round(ltp * 0.99)
-            tgt = round(ltp * 1.02)
+            tgt = round(ltp * 1.01)
         elif side == 'SELL':
             sl = round(ltp * 1.01)
-            tgt = round(ltp * 0.98)
+            tgt = round(ltp * 0.99)
         else:
             return None
 

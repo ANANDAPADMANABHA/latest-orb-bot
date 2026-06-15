@@ -5,7 +5,7 @@ import './BotControl.css';
 const STRATEGIES = [
   {
     id: 'fixed_percent',
-    label: 'Fixed % (1% SL / 2% target)',
+    label: 'Fixed % (1% SL / 1% target)',
     description: 'Stop loss and target as fixed percentages of LTP.',
   },
   {
