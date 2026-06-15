@@ -118,7 +118,7 @@ class OpeningRangeBreakout(AngelOneClient):
                             and df_data["low"].iloc[-2] >= hi_lo_prices[ticker][1]
                         ):
                             sl = round(ltp * 0.99)     # 1% below
-                            tgt = round(ltp * 1.02)    # 2% above
+                            tgt = round(ltp * 1.01)    # 1% above
                             quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
                             if quantity:
                                 self.place_bracket_order(
@@ -135,7 +135,7 @@ class OpeningRangeBreakout(AngelOneClient):
                             and df_data["high"].iloc[-2] <= hi_lo_prices[ticker][0]
                         ):
                             sl = round(ltp * 1.01)     # 1% above
-                            tgt = round(ltp * 0.98)    # 2% below
+                            tgt = round(ltp * 0.99)    # 1% below
                             quantity = calculate_quantity(capital, tgt, sl, risk_pct=0.01, rr=2)
                             if quantity:
                                 self.place_bracket_order(
