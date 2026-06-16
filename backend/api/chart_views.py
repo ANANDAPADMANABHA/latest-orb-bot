@@ -10,6 +10,9 @@ from trading.broker import IST
 from trading.broker_cache import format_broker_error, get_angel_client
 
 _CHARTS_CACHE_TTL_SECONDS = 60
+# Trading days of intraday history to include in chart candles (0 = today only).
+_CHART_LOOKBACK_DAYS = 30
+_MAX_CHART_LOOKBACK_DAYS = 90
 _charts_cache: dict = {}
 _orb_cache: dict = {}
 
@@ -35,7 +38,9 @@ def _cache_key(symbols: list) -> str:
     return f"{today}:{','.join(sorted(symbols))}"
 
 
-def _fetch_symbol_market_rows(symbols: list, include_candles: bool = False) -> list:
+def _fetch_symbol_market_rows(
+    symbols: list, include_candles: bool = False, days_back: int = 0
+) -> list:
     client = get_angel_client()
     client._load_instrument_list()
     instrument_list = client.instrument_list
@@ -52,7 +57,9 @@ def _fetch_symbol_market_rows(symbols: list, include_candles: bool = False) -> l
         if include_candles:
             entry['candles'] = []
         try:
-            chart = client.get_chart_data(symbol, instrument_list)
+            chart = client.get_chart_data(
+                symbol, instrument_list, days_back=days_back
+            )
             if chart is None:
                 entry['error'] = 'No intraday candle data'
             else:
@@ -78,10 +85,12 @@ def _fetch_symbol_market_rows(symbols: list, include_candles: bool = False) -> l
     return results
 
 
-def _fetch_watchlist_charts(symbols: list) -> dict:
+def _fetch_watchlist_charts(symbols: list, days_back: int = 0) -> dict:
     return {
         'updated_at': dt.datetime.now(IST).isoformat(),
-        'symbols': _fetch_symbol_market_rows(symbols, include_candles=True),
+        'symbols': _fetch_symbol_market_rows(
+            symbols, include_candles=True, days_back=days_back
+        ),
     }
 
 
@@ -110,7 +119,14 @@ def charts_watchlist(request):
         })
 
     force_refresh = request.query_params.get('refresh') in ('1', 'true', 'yes')
-    key = _cache_key(symbols)
+
+    try:
+        days_back = int(request.query_params.get('days', _CHART_LOOKBACK_DAYS))
+    except (TypeError, ValueError):
+        days_back = _CHART_LOOKBACK_DAYS
+    days_back = max(0, min(days_back, _MAX_CHART_LOOKBACK_DAYS))
+
+    key = f"{_cache_key(symbols)}:d{days_back}"
     now = time.time()
 
     if not force_refresh:
@@ -119,7 +135,7 @@ def charts_watchlist(request):
             return Response(cached['payload'])
 
     try:
-        payload = _fetch_watchlist_charts(symbols)
+        payload = _fetch_watchlist_charts(symbols, days_back=days_back)
     except Exception as e:
         return Response(
             {'error': format_broker_error(e)},

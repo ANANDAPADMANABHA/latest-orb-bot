@@ -367,6 +367,7 @@ class AngelOneClient:
         retries: int = 3,
         delay: float = 10.0,
         rate_limit_pause: bool = True,
+        days_back: int = 0,
     ) -> Optional[pd.DataFrame]:
         token = token_lookup(ticker, instrument_list)
         if not token:
@@ -374,6 +375,8 @@ class AngelOneClient:
 
         now = dt.datetime.now(IST)
         market_open = now.replace(hour=9, minute=15, second=0, microsecond=0)
+        if days_back > 0:
+            market_open = market_open - dt.timedelta(days=days_back)
         params = {
             'exchange': exchange,
             'symboltoken': token,
@@ -430,6 +433,7 @@ class AngelOneClient:
         exchange: str = 'NSE',
         retries: int = 2,
         delay: float = 1.0,
+        days_back: int = 0,
     ) -> Optional[Tuple[pd.DataFrame, Optional[float], Optional[float]]]:
         df = self._fetch_intraday_candle_df(
             ticker,
@@ -439,6 +443,7 @@ class AngelOneClient:
             retries=retries,
             delay=delay,
             rate_limit_pause=False,
+            days_back=days_back,
         )
         if df is None or df.empty:
             return None
