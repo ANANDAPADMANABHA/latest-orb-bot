@@ -41,6 +41,30 @@ class OpeningRangeBreakout(AngelOneClient):
             session=session,
         )
 
+    def _place_sim_trade(
+        self,
+        ticker: str,
+        side: str,
+        quantity: int,
+        ltp: float,
+        sl: float,
+        tgt: float,
+    ) -> None:
+        from api.models import BotSession, SimulatedTrade
+
+        session = BotSession.objects.filter(status='running').order_by('-started_at').first()
+        SimulatedTrade.objects.create(
+            session=session,
+            symbol=ticker,
+            side=side,
+            quantity=quantity,
+            entry_price=ltp,
+            stop_loss=sl,
+            target=tgt,
+        )
+        color = Colors.GREEN if side == 'BUY' else Colors.RED
+        print(f"{color}[PAPER] {side} {quantity} x {ticker} entry={ltp} SL={sl} TGT={tgt}{Colors.RESET}")
+
     def _place_trade(
         self,
         ticker: str,
@@ -51,7 +75,12 @@ class OpeningRangeBreakout(AngelOneClient):
         tgt: float,
         sl_strategy: str,
         exchange: str,
+        paper_mode: bool = False,
     ) -> None:
+        if paper_mode:
+            self._place_sim_trade(ticker, side, quantity, ltp, sl, tgt)
+            return
+
         order_ids = self.place_bracket_order(
             self.instrument_list, ticker, side, quantity, sl, tgt, exchange
         )
@@ -85,9 +114,12 @@ class OpeningRangeBreakout(AngelOneClient):
         sl_strategy = bot_settings.stop_loss_strategy
         risk_pct = bot_settings.risk_percent / 100.0
         usage_pct = bot_settings.max_capital_usage_percent
+        paper_mode = bot_settings.paper_mode
         print(f'Stop-loss strategy: {sl_strategy}')
         print(f'Risk per trade: {bot_settings.risk_percent}%')
         print(f'Max capital per trade: {usage_pct}%')
+        if paper_mode:
+            print('[PAPER MODE] Signals will be logged as simulated trades — no real orders placed.')
 
         update_trailing_stops(self, positions, self.instrument_list, exchange)
 
@@ -177,7 +209,8 @@ class OpeningRangeBreakout(AngelOneClient):
                         )
                         if quantity:
                             self._place_trade(
-                                ticker, 'BUY', quantity, ltp, sl, tgt, sl_strategy, exchange
+                                ticker, 'BUY', quantity, ltp, sl, tgt, sl_strategy, exchange,
+                                paper_mode=paper_mode,
                             )
                     elif bearish:
                         prev_low = float(df_data["low"].iloc[-2])
@@ -196,7 +229,8 @@ class OpeningRangeBreakout(AngelOneClient):
                         )
                         if quantity:
                             self._place_trade(
-                                ticker, 'SELL', quantity, ltp, sl, tgt, sl_strategy, exchange
+                                ticker, 'SELL', quantity, ltp, sl, tgt, sl_strategy, exchange,
+                                paper_mode=paper_mode,
                             )
                     else:
                         print(f"No breakout for {ticker}")

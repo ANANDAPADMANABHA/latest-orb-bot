@@ -54,4 +54,9 @@ urlpatterns = [
 
     # Sessions
     path('sessions/', views.sessions, name='sessions'),
+
+    # Simulated trades (paper mode)
+    path('sim/trades/', views.sim_trades, name='sim-trades'),
+    path('sim/settle/', views.sim_settle, name='sim-settle'),
+    path('sim/summary/', views.sim_summary, name='sim-summary'),
 ]

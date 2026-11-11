@@ -78,3 +78,8 @@ export const getPnLSummary = () => api.get('/pnl/summary/');
 
 // Sessions
 export const getSessions = () => api.get('/sessions/');
+
+// Simulated trades (paper mode)
+export const getSimTrades = (date) => api.get('/sim/trades/', { params: date ? { date } : {} });
+export const settleSimTrades = () => api.post('/sim/settle/');
+export const getSimSummary = () => api.get('/sim/summary/');

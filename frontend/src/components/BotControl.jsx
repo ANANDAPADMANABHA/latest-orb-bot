@@ -41,6 +41,7 @@ export default function BotControl() {
   const [strategyLoading, setStrategyLoading] = useState(false);
   const [riskLoading, setRiskLoading] = useState(false);
   const [capitalUsageLoading, setCapitalUsageLoading] = useState(false);
+  const [paperLoading, setPaperLoading] = useState(false);
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
 
@@ -160,11 +161,26 @@ export default function BotControl() {
     }
   };
 
+  const handlePaperModeToggle = async () => {
+    if (paperLoading) return;
+    setPaperLoading(true);
+    setError('');
+    try {
+      await updateBotSettings({ paper_mode: !status?.settings?.paper_mode });
+      await fetchStatus();
+    } catch (e) {
+      setError(e.response?.data?.error || 'Failed to update paper mode');
+    } finally {
+      setPaperLoading(false);
+    }
+  };
+
   const isRunning = Boolean(status?.is_running);
   const heartbeatStale = Boolean(status?.heartbeat_stale);
   const activeStrategy = status?.settings?.stop_loss_strategy || 'fixed_percent';
   const activeRisk = status?.settings?.risk_percent ?? 1;
   const activeCapitalUsage = status?.settings?.max_capital_usage_percent ?? 100;
+  const paperMode = Boolean(status?.settings?.paper_mode);
 
   return (
     <div className="bot-control card">
@@ -200,6 +216,26 @@ export default function BotControl() {
           {loading && isRunning ? '...' : '■ Stop Bot'}
         </button>
       </div>
+
+      <label className={`paper-mode-toggle${paperMode ? ' active' : ''}`}>
+        <span className="paper-mode-label">
+          <span className="paper-mode-title">Paper mode</span>
+          <span className="paper-mode-desc">
+            {paperMode
+              ? 'Signals detected — simulated trades logged, no real orders placed'
+              : 'Live trading — real orders will be placed on Angel One'}
+          </span>
+        </span>
+        <div className="paper-toggle-switch">
+          <input
+            type="checkbox"
+            checked={paperMode}
+            disabled={paperLoading}
+            onChange={handlePaperModeToggle}
+          />
+          <span className="paper-toggle-track" />
+        </div>
+      </label>
 
       <div className="bot-strategy-section">
         <div className="bot-strategy-title">Stop-loss strategy</div>

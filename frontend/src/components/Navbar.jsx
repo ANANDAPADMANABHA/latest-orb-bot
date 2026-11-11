@@ -10,6 +10,7 @@ const links = [
   { to: '/positions', label: 'Positions' },
   { to: '/pnl', label: 'P&L' },
   { to: '/sessions', label: 'Sessions' },
+  { to: '/sim', label: 'Paper trades' },
 ];
 
 export default function Navbar() {

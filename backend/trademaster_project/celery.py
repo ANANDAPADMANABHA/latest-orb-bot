@@ -17,6 +17,10 @@ beat_schedule = {
         'task': 'api.tasks.cleanup_orphan_orders_periodic',
         'schedule': 120.0,
     },
+    'settle-sim-trades-1525': {
+        'task': 'api.tasks.settle_sim_trades_periodic',
+        'schedule': crontab(hour=15, minute=25, day_of_week='mon-fri'),
+    },
 }
 
 if _env_bool('BOT_AUTO_START_0920', False):

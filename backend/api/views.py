@@ -4,13 +4,14 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings
+from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings, SimulatedTrade
 from .serializers import (
     WatchlistTickerSerializer,
     BotSessionSerializer,
     TradeSerializer,
     PnLRecordSerializer,
     BotSettingsSerializer,
+    SimulatedTradeSerializer,
 )
 
 
@@ -220,6 +221,83 @@ def pnl_sync(request):
             {'error': format_broker_error(e)},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+
+
+# ─── Simulated Trades ────────────────────────────────────────────────────────
+
+@api_view(['GET'])
+def sim_trades(request):
+    """Return simulated trades, optionally filtered by date."""
+    qs = SimulatedTrade.objects.all()
+    date_filter = request.query_params.get('date')
+    if date_filter:
+        qs = qs.filter(executed_at__date=date_filter)
+    return Response(SimulatedTradeSerializer(qs, many=True).data)
+
+
+@api_view(['POST'])
+def sim_settle(request):
+    """Settle open simulated trades using current LTP from Angel One."""
+    from django.utils import timezone
+    from trading.broker_cache import format_broker_error, get_angel_client
+
+    open_trades = SimulatedTrade.objects.filter(status='open')
+    if not open_trades.exists():
+        return Response({'settled': 0, 'message': 'No open simulated trades to settle'})
+
+    try:
+        client = get_angel_client()
+        client._load_instrument_list()
+    except Exception as e:
+        return Response(
+            {'error': format_broker_error(e)},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    settled = 0
+    for trade in open_trades:
+        try:
+            ltp = client.get_ltp(client.instrument_list, trade.symbol)
+            if not ltp:
+                continue
+            if trade.side == 'BUY':
+                pnl = (ltp - trade.entry_price) * trade.quantity
+            else:
+                pnl = (trade.entry_price - ltp) * trade.quantity
+            trade.exit_price = ltp
+            trade.pnl = round(pnl, 2)
+            trade.status = 'settled'
+            trade.settled_at = timezone.now()
+            trade.save(update_fields=['exit_price', 'pnl', 'status', 'settled_at'])
+            settled += 1
+        except Exception as exc:
+            print(f'Failed to settle sim trade {trade.id} ({trade.symbol}): {exc}')
+
+    return Response({'settled': settled, 'message': f'Settled {settled} simulated trade(s)'})
+
+
+@api_view(['GET'])
+def sim_summary(request):
+    """Aggregate daily sim P&L for the chart."""
+    from django.db.models import Count, Sum
+    from django.db.models.functions import TruncDate
+
+    rows = (
+        SimulatedTrade.objects
+        .filter(status='settled')
+        .annotate(date=TruncDate('executed_at'))
+        .values('date')
+        .annotate(total_pnl=Sum('pnl'), trades=Count('id'))
+        .order_by('date')
+    )
+    return Response([
+        {
+            'date': r['date'].isoformat() if r['date'] else None,
+            'total_pnl': round(r['total_pnl'] or 0, 2),
+            'trades': r['trades'],
+        }
+        for r in rows
+    ])
 
 
 # ─── Sessions ─────────────────────────────────────────────────────────────────

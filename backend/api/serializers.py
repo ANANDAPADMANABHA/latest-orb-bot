@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings
+from .models import WatchlistTicker, BotSession, Trade, PnLRecord, BotSettings, SimulatedTrade
 
 
 class WatchlistTickerSerializer(serializers.ModelSerializer):
@@ -51,6 +51,7 @@ class BotSettingsSerializer(serializers.ModelSerializer):
             'stop_loss_strategy',
             'risk_percent',
             'max_capital_usage_percent',
+            'paper_mode',
             'updated_at',
         ]
         read_only_fields = ['updated_at']
@@ -64,3 +65,14 @@ class BotSettingsSerializer(serializers.ModelSerializer):
         if value not in (50, 100):
             raise serializers.ValidationError('Max capital usage must be 50 or 100.')
         return value
+
+
+class SimulatedTradeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SimulatedTrade
+        fields = [
+            'id', 'symbol', 'side', 'quantity',
+            'entry_price', 'stop_loss', 'target',
+            'exit_price', 'pnl', 'status',
+            'executed_at', 'settled_at',
+        ]

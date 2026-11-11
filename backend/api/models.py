@@ -54,6 +54,38 @@ class Trade(models.Model):
         ordering = ['-executed_at']
 
 
+class SimulatedTrade(models.Model):
+    SIDE_CHOICES = [('BUY', 'Buy'), ('SELL', 'Sell')]
+    STATUS_OPEN = 'open'
+    STATUS_SETTLED = 'settled'
+    STATUS_CHOICES = [
+        (STATUS_OPEN, 'Open'),
+        (STATUS_SETTLED, 'Settled'),
+    ]
+
+    session = models.ForeignKey(
+        BotSession, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='simulated_trades',
+    )
+    symbol = models.CharField(max_length=20)
+    side = models.CharField(max_length=4, choices=SIDE_CHOICES)
+    quantity = models.IntegerField()
+    entry_price = models.FloatField()
+    stop_loss = models.FloatField()
+    target = models.FloatField()
+    exit_price = models.FloatField(null=True, blank=True)
+    pnl = models.FloatField(null=True, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    executed_at = models.DateTimeField(auto_now_add=True)
+    settled_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"[SIM] {self.side} {self.quantity} x {self.symbol} @ {self.entry_price}"
+
+    class Meta:
+        ordering = ['-executed_at']
+
+
 class BotSettings(models.Model):
     STRATEGY_FIXED = 'fixed_percent'
     STRATEGY_PREV_CANDLE = 'prev_candle'
@@ -79,6 +111,10 @@ class BotSettings(models.Model):
     max_capital_usage_percent = models.PositiveSmallIntegerField(
         choices=CAPITAL_USAGE_CHOICES,
         default=CAPITAL_USAGE_100,
+    )
+    paper_mode = models.BooleanField(
+        default=False,
+        help_text='When enabled the bot detects signals and logs simulated trades without placing real orders.',
     )
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -100,3 +100,47 @@ def cleanup_orphan_orders_periodic() -> None:
 def run_trade_bot_in_thread(session_id: int) -> None:
     """Background thread entrypoint for local dev without Redis."""
     execute_trade_bot(task_id='local-thread', session_id=session_id)
+
+
+@shared_task
+def settle_sim_trades_periodic() -> None:
+    """Settle open simulated trades using LTP. Runs at ~3:25 PM IST."""
+    import pytz
+    from django.utils import timezone
+
+    IST = pytz.timezone('Asia/Calcutta')
+    now = dt.datetime.now(IST)
+    if now.weekday() >= 5:
+        return
+    if not (dt.time(15, 20) <= now.time() <= dt.time(15, 35)):
+        return
+
+    from api.models import SimulatedTrade
+
+    open_trades = SimulatedTrade.objects.filter(status='open')
+    if not open_trades.exists():
+        return
+
+    try:
+        from trading.broker_cache import get_angel_client
+        client = get_angel_client()
+        client._load_instrument_list()
+    except Exception as exc:
+        print(f'Sim settle: failed to get broker client: {exc}')
+        return
+
+    for trade in open_trades:
+        try:
+            ltp = client.get_ltp(client.instrument_list, trade.symbol)
+            if not ltp:
+                continue
+            pnl = (ltp - trade.entry_price) * trade.quantity if trade.side == 'BUY' \
+                else (trade.entry_price - ltp) * trade.quantity
+            trade.exit_price = ltp
+            trade.pnl = round(pnl, 2)
+            trade.status = 'settled'
+            trade.settled_at = timezone.now()
+            trade.save(update_fields=['exit_price', 'pnl', 'status', 'settled_at'])
+            print(f'[SIM SETTLE] {trade.symbol} exit={ltp} pnl={trade.pnl}')
+        except Exception as exc:
+            print(f'Failed to settle sim trade {trade.id}: {exc}')

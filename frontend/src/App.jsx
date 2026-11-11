@@ -9,6 +9,7 @@ import Charts from './pages/Charts';
 import Positions from './pages/Positions';
 import PnL from './pages/PnL';
 import Sessions from './pages/Sessions';
+import SimTrades from './pages/SimTrades';
 import './App.css';
 
 function AppShell() {
@@ -23,6 +24,7 @@ function AppShell() {
           <Route path="/positions" element={<Positions />} />
           <Route path="/pnl" element={<PnL />} />
           <Route path="/sessions" element={<Sessions />} />
+          <Route path="/sim" element={<SimTrades />} />
         </Routes>
       </main>
     </div>
