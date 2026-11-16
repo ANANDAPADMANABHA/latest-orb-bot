@@ -103,59 +103,72 @@ class OpeningRangeBreakout(AngelOneClient):
         IST = pytz.timezone("Asia/Kolkata")
         now_ist = dt.datetime.now(IST)
 
-        # Run first — must not depend on capital fetch or broker errors later in the loop
-        self.cancel_orphan_exit_orders(positions)
-
-        capital = self.get_trade_capital()
-        print(f'Current capital: {capital} Rs')
-
         from api.models import BotSettings
         bot_settings = BotSettings.get_singleton()
         sl_strategy = bot_settings.stop_loss_strategy
         risk_pct = bot_settings.risk_percent / 100.0
         usage_pct = bot_settings.max_capital_usage_percent
         paper_mode = bot_settings.paper_mode
+
+        if not paper_mode:
+            self.cancel_orphan_exit_orders(positions)
+
+        SIM_CAPITAL = 100_000  # fixed simulated capital for paper mode
+        capital = SIM_CAPITAL if paper_mode else self.get_trade_capital()
+        print(f'{"[PAPER] Simulated" if paper_mode else "Current"} capital: {capital} Rs')
+
         print(f'Stop-loss strategy: {sl_strategy}')
         print(f'Risk per trade: {bot_settings.risk_percent}%')
         print(f'Max capital per trade: {usage_pct}%')
         if paper_mode:
             print('[PAPER MODE] Signals will be logged as simulated trades — no real orders placed.')
 
-        update_trailing_stops(self, positions, self.instrument_list, exchange)
+        if not paper_mode:
+            update_trailing_stops(self, positions, self.instrument_list, exchange)
 
         from trading.position_utils import (
             equity_base_symbol,
             net_position_qty,
             position_tradingsymbol,
+            sim_symbols_traded_today,
             symbols_traded_today,
         )
 
-        open_bases = set()
-        if not positions.empty:
-            for _, row in positions.iterrows():
-                if net_position_qty(row) == 0:
-                    continue
-                sym = position_tradingsymbol(row)
-                if sym:
-                    open_bases.add(equity_base_symbol(sym))
+        if paper_mode:
+            # In paper mode: skip symbols already sim-traded today (one trade per symbol per day)
+            traded_today = sim_symbols_traded_today()
+            active_tickers = [t for t in tickers if t.upper() not in traded_today]
+            if traded_today:
+                skipped = [t for t in tickers if t.upper() in traded_today]
+                if skipped:
+                    print(f'[PAPER] SKIP (already sim-traded today): {", ".join(skipped)}')
+        else:
+            open_bases = set()
+            if not positions.empty:
+                for _, row in positions.iterrows():
+                    if net_position_qty(row) == 0:
+                        continue
+                    sym = position_tradingsymbol(row)
+                    if sym:
+                        open_bases.add(equity_base_symbol(sym))
 
-        active_tickers = [i for i in tickers if i.upper() not in open_bases]
-        if open_orders is not None and not open_orders.empty:
-            active_tickers = [
-                i for i in active_tickers
-                if i + "-EQ" not in open_orders["tradingsymbol"].to_list()
-            ]
+            active_tickers = [i for i in tickers if i.upper() not in open_bases]
+            if open_orders is not None and not open_orders.empty:
+                active_tickers = [
+                    i for i in active_tickers
+                    if i + "-EQ" not in open_orders["tradingsymbol"].to_list()
+                ]
 
-        traded_today = symbols_traded_today()
-        if traded_today:
-            skipped_today = [t for t in active_tickers if t.upper() in traded_today]
-            if skipped_today:
-                print(
-                    f'SKIP (already traded today): {", ".join(skipped_today)}'
-                )
-            active_tickers = [
-                t for t in active_tickers if t.upper() not in traded_today
-            ]
+            traded_today = symbols_traded_today()
+            if traded_today:
+                skipped_today = [t for t in active_tickers if t.upper() in traded_today]
+                if skipped_today:
+                    print(
+                        f'SKIP (already traded today): {", ".join(skipped_today)}'
+                    )
+                active_tickers = [
+                    t for t in active_tickers if t.upper() not in traded_today
+                ]
 
         for ticker in active_tickers:
             time.sleep(0.4)

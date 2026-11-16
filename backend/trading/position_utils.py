@@ -42,6 +42,20 @@ def symbols_traded_today() -> set[str]:
     }
 
 
+def sim_symbols_traded_today() -> set[str]:
+    """NSE bases with a SimulatedTrade logged today (IST). Used in paper mode."""
+    from django.utils import timezone
+
+    from api.models import SimulatedTrade
+
+    today = timezone.localdate()
+    return {
+        s.upper()
+        for s in SimulatedTrade.objects.filter(executed_at__date=today)
+        .values_list('symbol', flat=True)
+    }
+
+
 def _row_float(row, *keys, default: float = 0.0) -> float:
     val = _row_field(row, *keys)
     if val in (None, ''):
